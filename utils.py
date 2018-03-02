@@ -27,9 +27,6 @@ def parse_data(data):
     :return: StockDataFrame
     """
 
-    # tuples = []
-
-    # for key, value in data.items():
     rows = []
     for obj in data:
         minute_ts = datetime.datetime.fromtimestamp(int(obj['minute_ts'])).strftime('%Y-%m-%d %H:%M:%S')
@@ -47,12 +44,6 @@ def parse_data(data):
 
     return sdf
 
-        # t = (key, df)
-    
-        # tuples.append(t)
-
-    # return tuples
-
 def get_macd_by_id(id, items):
     """
     Get item from list by id
@@ -68,4 +59,14 @@ def get_macd_by_id(id, items):
     item = [x for x in items if x['plato_ids'] == int(id)]
     return item[0] if len(item) > 0 else None
 
+def is_macd_object_exists(id, items):
+    """
+    Check if the object exists
+    
+    :param id:
+    :param items: list of items
 
+    :return: bool
+    """
+    macd = get_macd_by_id(id, items)
+    return True if macd != None else False

@@ -6,7 +6,7 @@ import time
 import stockstats
 from threading import Lock
 
-from .utils import fetch, get_macd_by_id
+from .utils import fetch, get_macd_by_id, is_macd_object_exists
 from .macd import MACD
 
 macd_objects = []
@@ -45,10 +45,14 @@ def addplato():
 
     params = request.args
 
-    if MACD.paramsIsValid(params):
+    if MACD.paramsIsNotValid(params):
         return 'Error'
+
+    global macd_objects      
+
+    if is_macd_object_exists(params['plato_ids'], macd_objects):
+        return 'Object already exists'
     
-    global macd_objects  
 
     # request to Plato-microservice
     macd = MACD(params['pair'], params['fast_period'], params['slow_period'], params['signal_period'], params['time_period'], params['plato_ids'])

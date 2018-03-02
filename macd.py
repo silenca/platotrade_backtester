@@ -3,7 +3,7 @@ import time
 
 class MACD():
 
-    def __init__(self, pair, fast_period, slow_period, signal_period, time_period, plato_ids, coefs={}):
+    def __init__(self, pair, fast_period, slow_period, signal_period, time_period, plato_ids, coefs={}, macd=None, macds=None, macdh=None):
         self.pair = pair
         self.fast_period = int(fast_period)
         self.slow_period = int(signal_period)
@@ -13,9 +13,19 @@ class MACD():
         self.coefficients = coefs
 
     @staticmethod
-    def paramsIsValid(params):
-        if not params['pair'] or not params['fast_period'] or not params['slow_period'] or not params['signal_period'] or not params['time_period'] or not params['plato_ids']:
-            return False
+    def paramsIsNotValid(params):
+        try:
+            if not params['pair'] or not params['fast_period'] or not params['slow_period'] or not params['signal_period'] or not params['time_period'] or not params['plato_ids']:
+                print('false')
+                return True
+        except:
+            print('false')
+            return True
+        
+        print('true')
+        return False
+    
+            
     
     def calculate_coefficient(self, df):
         fast = df[f'close_{self.fast_period}_ema']
@@ -28,7 +38,7 @@ class MACD():
         del fast
         del slow
 
-        self.coefficients[self.time_period] = {
+        self.coefficients = {
             'macd':  df.iloc[-1]['macd'],
             'macdh': df.iloc[-1]['macdh'],
             'macds': df.iloc[-1]['macds'],
