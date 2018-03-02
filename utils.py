@@ -6,7 +6,7 @@ import datetime
 import time
 from stockstats import StockDataFrame
 
-def fetch(pair, time_period):
+def fetch(pair, time_period=None):
     """
     Fetch data from Plato-microservice by last 30 min
     :param time_period:
@@ -28,18 +28,19 @@ def parse_data(data):
     """
 
     rows = []
-    for obj in data:
+    for obj in reversed(data):
         minute_ts = datetime.datetime.fromtimestamp(int(obj['minute_ts'])).strftime('%Y-%m-%d %H:%M:%S')
+        ts = int(obj['minute_ts'])
         v =  obj['v']
         l =  obj['l']
         h =  obj['h']
         c =  obj['c']
         vo = obj['vo']
         o =  obj['o']
-        rows.append([minute_ts, vo, h, c, o, l, v])
+        rows.append([minute_ts, ts, vo, h, c, o, l, v])
     
     sdf = StockDataFrame.retype(
-        pd.DataFrame(rows, columns=['date', 'volume', 'high', 'close', 'open', 'low', 'amount'])
+        pd.DataFrame(rows, columns=['date', 'ts', 'volume', 'high', 'close', 'open', 'low', 'amount'])
     )
 
     return sdf
@@ -51,13 +52,14 @@ def get_macd_by_id(id, items):
     :param id:
     :param items: list of items
 
-    :return dict or None
+    :return MACD or None
     """
-    # for x in items:
-    #     print(x)
 
-    item = [x for x in items if x['plato_ids'] == int(id)]
-    return item[0] if len(item) > 0 else None
+    for x in items:
+        if x.plato_ids == id:
+            return x
+        
+    return None
 
 def is_macd_object_exists(id, items):
     """
