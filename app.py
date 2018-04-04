@@ -6,10 +6,11 @@ import time
 import stockstats
 from threading import Lock
 
-from .utils import fetch, get_macd_by_id, is_macd_object_exists
+from .utils import fetch, get_macd_by_id, is_macd_object_exists, parse_data
 from .macd import MACD
 
 macd_objects = []
+data = dict()
 
 app = Flask(__name__)
 app.debug = True
@@ -36,15 +37,20 @@ def calcAll():
     :return: List of serialized MACD-objects
     """
     global macd_objects
-    
+    global data
+
     for macd in macd_objects:
         try:
-            sdf = fetch(macd.pair, macd.time_period)
+            if macd.pair not in data:
+                data[macd.pair] = fetch(macd.pair) # get data
+
         except Exception as err:
             return jsonpify(err)
 
+        sdf = parse_data(data[macd.pair][macd.time_period])
         sdf = macd.calculate_coefficient(sdf)
 
+    data = dict() # empty data
     return jsonpify([m.__dict__ for m in macd_objects])
 
 @app.route('/addplato', methods=['PUT'])
@@ -67,20 +73,14 @@ def addplato():
     if MACD.paramsIsNotValid(params):
         return 'Error'
 
-    global macd_objects      
+    global macd_objects  
+    global data    
 
     if get_macd_by_id(params['plato_ids'], macd_objects) != None:
         return 'Object already exists'
     
     # request to Plato-microservice
     macd = MACD(params['pair'], params['fast_period'], params['slow_period'], params['signal_period'], params['time_period'], params['plato_ids'])
-  
-    try:
-        sdf = fetch(macd.pair, macd.time_period)
-    except Exception as err:
-        return jsonpify({ 'message': err, 'status': 1 })
-
-    sdf = macd.calculate_coefficient(sdf)
     
     macd_objects.append(macd)
 

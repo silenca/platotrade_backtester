@@ -11,13 +11,13 @@ def fetch(pair, time_period=None):
     Fetch data from Plato-microservice by last 30 min
     :param time_period:
 
-    :return: StockDataFrame
+    :return: json
     """
 
     url = f'http://platotradeinfo.silencatech.com/main/dashboard/ajaxgetetradedata?pair={pair}'
     
     response = requests.get(url)
-    return parse_data(response.json()['result'][time_period])
+    return response.json()['result'] # received raw data
 
 def parse_data(data):
     """
