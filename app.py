@@ -47,8 +47,12 @@ def calcAll():
         except Exception as err:
             return jsonpify(err)
 
-        sdf = parse_data(data[macd.pair][macd.time_period])
-        sdf = macd.calculate_coefficient(sdf)
+        try: 
+            sdf = parse_data(data[macd.pair][macd.time_period])
+            sdf = macd.calculate_coefficient(sdf)
+        except KeyError as err:
+            return jsonpify({ 'status': 0, 'message': 'Time period is incorrect: {}'.format(err)})
+
 
     data = dict() # empty data
     return jsonpify([m.__dict__ for m in macd_objects])
