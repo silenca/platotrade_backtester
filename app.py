@@ -43,16 +43,12 @@ def calcAll():
         try:
             if macd.pair not in data:
                 data[macd.pair] = fetch(macd.pair) # get data
+                data[macd.pair] = parse_data(data[macd.pair]) # in each pair is stored sdf-data itself
 
         except Exception as err:
             return jsonpify(err)
 
-        try: 
-            sdf = parse_data(data[macd.pair][macd.time_period])
-            sdf = macd.calculate_coefficient(sdf)
-        except KeyError as err:
-            return jsonpify({ 'status': 0, 'message': 'Time period is incorrect: {}'.format(err)})
-
+        sdf = macd.calculate_coefficient(data[macd.pair][macd.time_period])
 
     data = dict() # empty data
     return jsonpify([m.__dict__ for m in macd_objects])
@@ -88,7 +84,6 @@ def addplato():
     
     macd_objects.append(macd)
 
-    print(macd_objects)
     return jsonpify(macd.__dict__)
 
 @app.route('/calc/<string:plato_ids>', methods=['PUT'])
