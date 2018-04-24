@@ -29,17 +29,18 @@ def trading_view_data():
     return data
 
 
-
 df = pd.read_csv('main_ratefifteen.csv')
 
 data = df.rename(columns={"vo": 'volume', "h": "high", 'c': 'close', 'o': 'open', 'l': 'low'})
 data = data.sort_values('create')
 
-def calculate_macd_param(set_macd=[12,26,9]):
+
+def calculate_macd_param(set_macd=[12, 26, 9]):
     sdf = Sdf
     sdf.MACD = set_macd
     stock = sdf.retype(data)
     return stock
+
 
 stock = calculate_macd_param()
 signal = stock['macds']  # Your signal line
@@ -64,6 +65,5 @@ for i in range(1, len(signal)):
 
 # print(stock.head('Advise')=listLo)
 data['Advisor'] = listLongShort
-
 
 data.to_csv('result.csv')
