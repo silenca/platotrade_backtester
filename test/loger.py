@@ -33,6 +33,8 @@ def logger(df, period):
     if not os.path.isfile(file_name):
         df.to_csv(file_name, header='column_names')
     else:  # else it exists so append without writing the header
+        print(df['created'])
+        print(df)
         df.to_csv(file_name, mode='a', header=False)
 
 
@@ -41,7 +43,7 @@ def call_all():
     signals = []
     for i in macd_objects:
         last_row = handling_coefficient(data, i)
-        if last_row['advise'] != 'HOLD':
+        if (last_row['advice'] != 'HOLD').bool():
             logger(last_row, i.time_period)
             signals.append(last_row)
     return signals
@@ -49,4 +51,4 @@ def call_all():
 if __name__ == '__main__':
     while True:
         call_all()
-        time.sleep(10)
+        time.sleep(20)
