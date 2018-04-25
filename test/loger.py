@@ -33,7 +33,7 @@ def logger(df, period):
     if not os.path.isfile(file_name):
         df.to_csv(file_name, header='column_names')
     else:  # else it exists so append without writing the header
-        print(df['created'])
+        print('-------------------------------')
         print(df)
         df.to_csv(file_name, mode='a', header=False)
 

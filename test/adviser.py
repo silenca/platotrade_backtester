@@ -27,7 +27,8 @@ def handling_coefficient(data, macd):
 
     # print(stock.head('Advise')=listLo)
     last_calculation = stock.tail(1)
+    last_calculation.index.name = 'date'
+    last_calculation = last_calculation.reset_index()
     now = datetime.datetime.now(tzlocal())
-    last_calculation['created'] = now.strftime('%Y-%m-%d %H:%M:%S')
-    last_calculation.set_index('created')
+    last_calculation.index = [now.strftime('%Y-%m-%d %H:%M:%S')]
     return last_calculation
