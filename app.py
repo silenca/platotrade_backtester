@@ -1,13 +1,8 @@
 from flask import Flask, request, jsonify
 from flask_jsonpify import jsonpify
-from flask_socketio import SocketIO, send, emit
-import requests
-import time
-import stockstats
-from threading import Lock
 
-from .utils import fetch, get_macd_by_id, is_macd_object_exists, parse_data
-from .macd import MACD
+from utils import fetch, get_macd_by_id, parse_data, parse_date_period
+from macd import MACD
 
 macd_objects = []
 data = dict()
@@ -49,6 +44,7 @@ def calcAll():
             return jsonpify(err)
 
         sdf = macd.calculate_coefficient(data[macd.pair][macd.time_period])
+        sdf = macd.last_coefficient(sdf)
 
     data = dict() # empty data
     return jsonpify([m.__dict__ for m in macd_objects])
@@ -108,7 +104,6 @@ def calc(plato_ids):
 
     sdf = macd.calculate_coefficient(sdf)
 
-    print(macd_objects)
     return jsonpify(macd.__dict__)
 
 
@@ -132,5 +127,30 @@ def delete_macd_object(plato_ids):
         return jsonpify({ 'message': 'Object is not exists', 'status': 1 })
 
 
+@app.route('/backtester', methods=['GET'])
+def backtester():
+    """
+        Create the new MACD-object and calculated macd-coefficients for whole period
+
+        :query_param pair
+        :query_param fast_period
+        :query_param slow_period
+        :query_param signal_period
+        :query_param period
+        :query_param from
+        :query_param to
+
+        :return: dict
+        """
+
+    params = request.args
+    macd =MACD(params['pair'], params['fast_period'], params['slow_period'], params['signal_period'],
+              params['time_period'], plato_ids=None)
+    data = macd.get_data(params['from'], params['to'])
+    stock = macd.calculate_coefficient(data)
+    macd.coefficients = stock[['macd', 'macdh', 'macds']].T.to_dict()
+    return jsonify(macd.__dict__)
+
+
 if __name__ == '__main__':
-    app.run() # Run app
+    app.run(debug=True) # Run app

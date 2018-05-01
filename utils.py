@@ -1,12 +1,11 @@
 import requests
-
 import pandas as pd
-
 import datetime
-import time
+
 from stockstats import StockDataFrame
 
-def fetch(pair, time_period=None):
+
+def fetch(pair, time_period=None, interval=None):
     """
     Fetch data from Plato-microservice by last 30 min
     :param time_period:
@@ -14,10 +13,29 @@ def fetch(pair, time_period=None):
     :return: json
     """
 
-    url = f'http://platotradeinfo.silencatech.com/main/dashboard/ajaxgetetradedata?pair={pair}'
-    
-    response = requests.get(url)
-    return response.json()['result'] # received raw data
+    if time_period is None:
+        url = f'http://platotradeinfo.silencatech.com/main/dashboard/ajaxgetetradedata'
+        response = requests.get(url, params={'pair': pair})
+        return response.json()['result']
+    elif time_period is not None and interval is not None:
+        url = 'http://platotradeinfo.silencatech.com/main/dashboard/ajaxgetetradedataforperiod'
+        response = requests.get(url, params={'pair': pair,
+                                             'from': time_period['from'],
+                                             'to': time_period['to'],
+                                             'period': interval})
+        return response.json()['data']
+
+
+def parse_date_period(data):
+    df = pd.DataFrame(data)
+    df = df[['minute_ts', 'l', 'h', 'c', 'vo', 'o']]
+    df = df.rename(columns = {'vo': 'volume', 'l': 'low', 'h': 'high', 'o': 'open', 'c': 'close'})
+
+    date = pd.to_datetime(df['minute_ts'], unit='s')
+    df.insert(0, 'date', date)
+    df['date']= df['date'].dt.strftime('%Y-%m-%d %H:%M:%S')
+
+    return StockDataFrame.retype(df)
 
 def parse_data(data):
     """
@@ -33,12 +51,12 @@ def parse_data(data):
         for obj in reversed(data[key]):
             minute_ts = datetime.datetime.fromtimestamp(int(obj['minute_ts'])).strftime('%Y-%m-%d %H:%M:%S')
             ts = int(obj['minute_ts'])
-            v =  obj['v']
-            l =  obj['l']
-            h =  obj['h']
-            c =  obj['c']
+            v = obj['v']
+            l = obj['l']
+            h = obj['h']
+            c = obj['c']
             vo = obj['vo']
-            o =  obj['o']
+            o = obj['o']
             rows.append([minute_ts, ts, vo, h, c, o, l, v])
         
         sdf = StockDataFrame.retype(
@@ -48,6 +66,7 @@ def parse_data(data):
         d[key] = sdf
 
     return d
+
 
 def get_macd_by_id(id, items):
     """
@@ -64,6 +83,7 @@ def get_macd_by_id(id, items):
             return x
         
     return None
+
 
 def is_macd_object_exists(id, items):
     """

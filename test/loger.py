@@ -48,6 +48,7 @@ def call_all():
             signals.append(last_row)
     return signals
 
+
 if __name__ == '__main__':
     while True:
         call_all()

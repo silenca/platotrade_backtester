@@ -4,13 +4,15 @@ import pandas as pd
 from stockstats import StockDataFrame as Sdf
 
 import datetime
+import utils
+from macd import MACD
 
 
 def trading_view_data():
     params = {'symbol': 49798,
               'resolution': 5,
-              'from': 1517739932,
-              'to': 1519035992}
+              'from': 1524080938,
+              'to': 1525084938}
     headers = {
         'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.84 Safari/537.36'}
     r = requests.get(
@@ -25,46 +27,55 @@ def trading_view_data():
     data['close'] = tr_data['c']
     data['open'] = tr_data['o']
     data['low'] = tr_data['l']
-    # data['amount'] = tr_data['v']
+    data['amount'] = tr_data['v']
     return data
 
 
-df = pd.read_csv('main_ratefifteen.csv')
+def get_data_from_file():
+    df = pd.read_csv('data.csv')
+
+    return df.rename(columns={"vo": 'volume', "h": "high", 'c': 'close', 'o': 'open', 'l': 'low'})
 
 
-data = df.rename(columns={"vo": 'volume', "h": "high", 'c': 'close', 'o': 'open', 'l': 'low'})
-
-
-
-def calculate_macd_param(set_macd=[12, 26, 9]):
+def calculate_macd_param(data):
     sdf = Sdf
-    sdf.MACD = set_macd
     stock = sdf.retype(data)
+    print(stock['macd'])
     return stock
 
 
-stock = calculate_macd_param()
-signal = stock['macds']  # Your signal line
-macd = stock['macd']  # The MACD that need to cross the signal line
-#                                              to give you a Buy/Sell signal
-listLongShort = ["No data"]  # Since you need at least two days in the for loop
+def calc_advise(stock):
+    signal = stock['macds']  # Your signal line
+    macd = stock['macd']  # The MACD that need to cross the signal line
+    #                                              to give you a Buy/Sell signal
+    listLongShort = ["No data"]  # Since you need at least two days in the for loop
 
-for i in range(1, len(signal)):
-    #                          # If the MACD crosses the signal line upward
-    if macd.iloc[i] > signal.iloc[i] and macd.iloc[i - 1] <= signal.iloc[i - 1]:
-        listLongShort.append("BUY")
-    # # The other way around
-    elif macd.iloc[i] < signal.iloc[i] and macd.iloc[i - 1] >= signal.iloc[i - 1]:
-        listLongShort.append("SELL")
-    # # Do nothing if not crossed
-    else:
-        listLongShort.append("HOLD")
+    for i in range(1, len(signal)):
+        #                          # If the MACD crosses the signal line upward
+        if macd.iloc[i] > signal.iloc[i] and macd.iloc[i - 1] <= signal.iloc[i - 1]:
+            listLongShort.append("BUY")
+        # # The other way around
+        elif macd.iloc[i] < signal.iloc[i] and macd.iloc[i - 1] >= signal.iloc[i - 1]:
+            listLongShort.append("SELL")
+        # # Do nothing if not crossed
+        else:
+            listLongShort.append("HOLD")
 
-# stock['Advice'] = listLongShort
-# The advice column means "Buy/Sell/Hold" at the end of this day or
-#  at the beginning of the next day, since the market will be closed
+    # stock['Advice'] = listLongShort
+    # The advice column means "Buy/Sell/Hold" at the end of this day or
+    #  at the beginning of the next day, since the market will be closed
 
-# print(stock.head('Advise')=listLo)
-data['Advisor'] = listLongShort
+    # print(stock.head('Advise')=listLo)
+    stock['Advisor'] = listLongShort
 
-data.to_csv('result.csv')
+    stock.to_csv('result.csv')
+
+
+data = utils.fetch('btc_usd', time_period={'from': 1519225472, 'to': 1619225472}, interval=5)
+data = utils.parse_date_period(data)
+stock = MACD('btc_usd', 12,26,9,5,1)
+# print(data['date'])
+# advise = calc_advise(stock)
+# sdf = Sdf
+stock.calculate_coefficient(data)
+print(stock['macd'])
