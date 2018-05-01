@@ -1,8 +1,8 @@
 from flask import Flask, request, jsonify
 from flask_jsonpify import jsonpify
 
-from utils import fetch, get_macd_by_id, parse_data, parse_date_period
-from macd import MACD
+from .utils import fetch, get_macd_by_id, parse_data, parse_date_period
+from .macd import MACD
 
 macd_objects = []
 data = dict()
@@ -148,7 +148,7 @@ def backtester():
               params['time_period'], plato_ids=None)
     data = macd.get_data(params['from'], params['to'])
     stock = macd.calculate_coefficient(data)
-    macd.coefficients = stock[['macd', 'macdh', 'macds']].T.to_dict()
+    macd.coefficients = stock[['macd', 'macdh', 'macds', 'close']].T.to_dict()
     return jsonify(macd.__dict__)
 
 
