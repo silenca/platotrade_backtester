@@ -148,6 +148,7 @@ def backtester():
               params['time_period'], plato_ids=None)
     data = macd.get_data(params['from'], params['to'])
     stock = macd.calculate_coefficient(data)
+    stock = stock.set_index('minute_ts')
     macd.coefficients = stock[['macd', 'macdh', 'macds', 'close']].T.to_dict()
     return jsonify(macd.__dict__)
 
