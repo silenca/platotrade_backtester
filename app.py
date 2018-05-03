@@ -3,6 +3,9 @@ from flask_jsonpify import jsonpify
 
 from .utils import fetch, get_macd_by_id, parse_data, parse_date_period
 from .macd import MACD
+from .helper import setup_loggin
+
+logger = setup_loggin()
 
 macd_objects = []
 data = dict()
@@ -149,12 +152,15 @@ def backtester():
 
     macds = []
     for coeff in macd_coeff:
+        logger.info(f'start  - {coeff}')
         macd = MACD(params['pair'], coeff[0], coeff[1], coeff[2], coeff[3], plato_ids=None)
         data = macd.get_data(params['from'], params['to'])
         stock = macd.calculate_coefficient(data)
         stock = stock.set_index('minute_ts')
         macd.coefficients = stock[['macd', 'macdh', 'macds', 'close']].T.to_dict()
         macds.append(macd)
+        logger.info('end calc')
+    logger.info('end request')
     return jsonify([macd.__dict__ for macd in macds])
 
 

@@ -1,5 +1,7 @@
 from .utils import fetch, parse_date_period
+from .helper import setup_loggin
 
+logger = setup_loggin()
 
 class MACD():
 
@@ -57,5 +59,7 @@ class MACD():
         return df
 
     def get_data(self, _from, _to):
+        logger.info('start')
         data = fetch(self.pair, interval=self.time_period, time_period={'from': _from, 'to': _to})
+        logger.info('end')
         return parse_date_period(data)
