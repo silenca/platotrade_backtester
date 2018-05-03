@@ -144,13 +144,18 @@ def backtester():
         """
 
     params = request.args
-    macd =MACD(params['pair'], params['fast_period'], params['slow_period'], params['signal_period'],
-              params['time_period'], plato_ids=None)
-    data = macd.get_data(params['from'], params['to'])
-    stock = macd.calculate_coefficient(data)
-    stock = stock.set_index('minute_ts')
-    macd.coefficients = stock[['macd', 'macdh', 'macds', 'close']].T.to_dict()
-    return jsonify(macd.__dict__)
+    macd_coeff = [params['coeffs[0]'].split('_'),
+                  params['coeffs[1]'].split('_')]
+
+    macds = []
+    for coeff in macd_coeff:
+        macd = MACD(params['pair'], coeff[0], coeff[1], coeff[2], coeff[3], plato_ids=None)
+        data = macd.get_data(params['from'], params['to'])
+        stock = macd.calculate_coefficient(data)
+        stock = stock.set_index('minute_ts')
+        macd.coefficients = stock[['macd', 'macdh', 'macds', 'close']].T.to_dict()
+        macds.append(macd)
+    return jsonify([macd.__dict__ for macd in macds])
 
 
 if __name__ == '__main__':
