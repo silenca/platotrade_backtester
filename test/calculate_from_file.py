@@ -71,10 +71,12 @@ def calc_advise(stock):
     stock.to_csv('result.csv')
 
 
-data = utils.fetch('btc_usd', time_period={'from': 1522530000, 'to': 1525433700}, interval=5)
+# data = utils.fetch('btc_usd', time_period={'from': 1524873600, 'to': 1525478400}, interval=60)
 # data = utils.parse_date_period(data)
-macd = MACD('btc_usd', 12,26,9,5,1)
-stock = macd.get_data(1522530000, 1525433700)
+macd = MACD('btc_usd', 12, 26, 9, 60, 1)
+stock = macd.get_data(1524873600, 15254784000)
+stock = macd.calculate_coefficient(stock)
+
 calc_advise(stock)
 # sdf = Sdf
 # df = get_data_from_file()
