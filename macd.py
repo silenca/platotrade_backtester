@@ -39,7 +39,7 @@ class MACD():
         del fast
         del slow
         self.coefficients = df[['macd']].to_dict()
-        return df[self.skip_data:]
+        return df[(self.skip_data-1):]
 
     def last_coefficient(self, df):
         self.coefficients = {}
@@ -62,7 +62,7 @@ class MACD():
 
     def get_data(self, _from, _to):
         logger.info('start')
-        _from = _from - self.time_period * self.skip_data
+        _from = _from - self.time_period * 60 * self.skip_data
         data = fetch(self.pair, interval=self.time_period, time_period={'from': _from, 'to': _to})
         logger.info('end')
         return parse_date_period(data)
