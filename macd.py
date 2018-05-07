@@ -1,5 +1,5 @@
 from .utils import fetch, parse_date_period
-from helper import setup_loggin
+from .helper import setup_loggin
 
 logger = setup_loggin()
 
