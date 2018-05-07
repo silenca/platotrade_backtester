@@ -1,8 +1,7 @@
-import pytest
 import pytz
 from datetime import datetime
 
-from macd import MACD
+from app.macd import MACD
 
 macd = MACD('btc_usd', 12, 26, 9, 60, '1')
 

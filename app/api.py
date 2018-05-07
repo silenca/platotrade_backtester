@@ -1,17 +1,18 @@
 from flask import Flask, request, jsonify
 from flask_jsonpify import jsonpify
 
-from .utils import fetch, get_macd_by_id, parse_data, parse_date_period
-from .macd import MACD
-from .helper import setup_loggin
+from app import app
+from app.utils import fetch, get_macd_by_id, parse_data
+from app.macd import MACD
+from app.helper import setup_loggin
 
 logger = setup_loggin()
 
 macd_objects = []
 data = dict()
 
-app = Flask(__name__)
-app.debug = True
+# app = Flask(__name__)
+# app.debug = True
 
 
 @app.route('/macd', methods=['GET'])

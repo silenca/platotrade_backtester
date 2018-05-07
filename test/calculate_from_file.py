@@ -4,8 +4,7 @@ import pandas as pd
 from stockstats import StockDataFrame as Sdf
 
 import datetime
-import utils
-from macd import MACD
+from app.macd import MACD
 
 
 def trading_view_data():

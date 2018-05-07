@@ -1,5 +1,5 @@
-from utils import fetch, get_macd_by_id, is_macd_object_exists, parse_data
-from macd import MACD
+from app__ import fetch, get_macd_by_id, parse_data
+from app__ import MACD
 
 
 macd_objects = []

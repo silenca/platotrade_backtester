@@ -1,7 +1,7 @@
 import os
 import time
 
-from macd import MACD
+from app.macd import MACD
 from test.adviser import handling_coefficient
 
 macd_objects = []
@@ -9,7 +9,7 @@ server = 'http://localhost:5000'
 
 
 def get_data():
-    from utils import fetch, parse_data
+    from app.utils import fetch, parse_data
     data = fetch('btc_usd')
     d = parse_data(data)
     return d
