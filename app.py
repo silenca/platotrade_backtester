@@ -154,7 +154,7 @@ def backtester():
     for coeff in macd_coeff:
         logger.info(f'start  - {coeff}')
         macd = MACD(params['pair'], coeff[0], coeff[1], coeff[2], coeff[3], plato_ids=None)
-        data = macd.get_data(params['from'], params['to'])
+        data = macd.get_data(int(params['from']), int(params['to']))
         stock = macd.calculate_coefficient(data)
         stock = stock.set_index('minute_ts')
         macd.coefficients = stock[['macd', 'macdh', 'macds', 'close']].T.to_dict()
