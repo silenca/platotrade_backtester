@@ -13,7 +13,7 @@ class MACD():
         self.fast_period = int(fast_period)
         self.slow_period = int(slow_period)
         self.signal_period = int(signal_period)
-        self.time_period = time_period
+        self.time_period = int(time_period)
         self.plato_ids = plato_ids
         self.coefficients = coefs
 
