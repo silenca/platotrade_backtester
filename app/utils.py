@@ -28,13 +28,17 @@ def fetch(pair, time_period=None, interval=None):
 
 def parse_date_period(data):
     df = pd.DataFrame(data)
-    df = df[['minute_ts', 'l', 'h', 'c', 'vo', 'o']]
+    df = df[['minute_ts', 'o',  'h', 'l', 'c', 'vo']]
     df = df.sort_values(by=['minute_ts'])
-    df = df.rename(columns={'vo': 'volume', 'l': 'low', 'h': 'high', 'o': 'open', 'c': 'close'})
+    df = df.rename(columns={'vo': 'volume',
+                            'o': 'open',
+                            'h': 'high',
+                            'l': 'low',
+                            'c': 'close'})
 
     date = pd.to_datetime(df['minute_ts'], unit='s')
     df.insert(0, 'date', date)
-    df['date']= df['date'].dt.strftime('%Y-%m-%d %H:%M:%S')
+    df['date'] = df['date'].dt.strftime('%Y-%m-%d %H:%M:%S')
 
     return StockDataFrame.retype(df)
 
