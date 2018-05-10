@@ -3,10 +3,13 @@ from app.helper import setup_loggin
 
 logger = setup_loggin()
 
+cache_platradeinfo = dict()
+
 
 class MACD():
 
     skip_data = 34
+    cache_platotradeinfo = dict()
 
     def __init__(self, pair, fast_period, slow_period, signal_period, time_period, plato_ids, coefs={}, macd=None,
                  macds=None, macdh=None):
@@ -62,8 +65,10 @@ class MACD():
         return df
 
     def get_data(self, _from, _to):
-        logger.info('start')
         _from = _from - self.time_period * 60 * self.skip_data
-        data = fetch(self.pair, interval=self.time_period, time_period={'from': _from, 'to': _to})
-        logger.info('end')
-        return parse_date_period(data)
+        key = f'{self.time_period}_{_from}'
+        if cache_platradeinfo.get(key) is None:
+            data = fetch(self.pair, interval=self.time_period, time_period={'from': _from, 'to': _to})
+            cache_platradeinfo[key] = parse_date_period(data)
+
+        return cache_platradeinfo.get(key)

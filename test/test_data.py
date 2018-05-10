@@ -19,5 +19,5 @@ def test_skip_data():
     assert data['minute_ts'][0] == from_
 
 
-def test_macs_coeff():
-    pass
+def test_cache_platotradeinfo():
+    macd.get_data(1519225472, 1619225472)
