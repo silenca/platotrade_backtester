@@ -12,6 +12,6 @@ Python version: 3.6.3
 ## Launch
 
 ```
-  $ export FLASK_APP=app.py
+  $ export FLASK_APP=run.py
   $ flask run
 ```
