@@ -5,7 +5,6 @@ logger = setup_loggin()
 
 
 class MACD():
-
     skip_data = 34
 
     def __init__(self, pair, fast_period, slow_period, signal_period, time_period, plato_ids, coefs={}, macd=None,
@@ -40,7 +39,7 @@ class MACD():
         del fast
         del slow
         self.coefficients = df[['macd']].to_dict()
-        return df[(self.skip_data-1):]
+        return df[(self.skip_data - 1):]
 
     def last_coefficient(self, df):
         self.coefficients = {}
@@ -62,8 +61,8 @@ class MACD():
         return df
 
     def get_data(self, _from, _to):
-        logger.info('start')
+        logger.info('start get data')
         _from = _from - self.time_period * 60 * self.skip_data
         data = fetch(self.pair, interval=self.time_period, time_period={'from': _from, 'to': _to})
-        logger.info('end')
+        logger.info('end get data')
         return parse_date_period(data)

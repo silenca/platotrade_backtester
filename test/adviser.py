@@ -60,9 +60,9 @@ def calc_advise(stock):
     #  at the beginning of the next day, since the market will be closed
 
     # print(stock.head('Advise')=listLo)
-    stock['Advisor'] = listLongShort
+    stock['advise'] = listLongShort
 
-    stock.to_csv(path)
+    # stock.to_csv(path)
 
 if __name__ == '__main__':
     macd = MACD('btc_usd', 12, 26, 9, 15, 1)

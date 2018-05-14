@@ -1,4 +1,6 @@
+import requests
 import pytz
+import pytest
 from datetime import datetime
 
 from app.macd import MACD
@@ -19,5 +21,6 @@ def test_skip_data():
     assert data['minute_ts'][0] == from_
 
 
-def test_macs_coeff():
-    pass
+def test_backtest():
+    r = requests.get('http://127.0.0.1/backtester?pair=BTC_USD&from=1525608000&to=1525694400&coeffs[0]=12_26_9_120&coeffs[1]=12_26_9_30')
+    print(r.json())
