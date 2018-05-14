@@ -28,7 +28,6 @@ def backtest_all(from_, to_, pair):
                     backtest = Backtest(stock, stock)
                     backtest.calc_trades()
                     statistics = backtest.get_statistics()
-                    print(statistics)
                     logger.info(f'params {fast_period}-{slow_period}-{signal_period}-{interval} -- {statistics}')
 
 class Backtest:
