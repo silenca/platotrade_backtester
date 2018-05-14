@@ -43,7 +43,7 @@ class MACD():
         del fast
         del slow
         self.coefficients = df[['macd']].to_dict()
-        return df[(self.skip_data-1):]
+        return df[(self.skip_data - 1):]
 
     def last_coefficient(self, df):
         self.coefficients = {}

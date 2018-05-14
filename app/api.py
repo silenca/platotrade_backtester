@@ -5,6 +5,7 @@ from app import app
 from app.utils import fetch, get_macd_by_id, parse_data
 from app.macd import MACD
 from app.helper import setup_loggin
+from app.bactester import backtest_all
 
 logger = setup_loggin()
 
@@ -160,9 +161,19 @@ def backtester():
         stock = stock.set_index('minute_ts')
         macd.coefficients = stock[['macd', 'macdh', 'macds', 'close']].T.to_dict()
         macds.append(macd)
-        logger.info('end calc')
-    logger.info('end request')
     return jsonify([macd.__dict__ for macd in macds])
+
+
+@app.route('/startbacktest', methods=['GET'])
+def start_backtest():
+    """
+        Run calculate backtest for all combinations
+        :query_param pair
+        :query_param from
+        :query_param to
+        """
+    params = request.args
+    backtest_all(int(params['from']), int(params['to']), params['pair'])
 
 
 if __name__ == '__main__':

@@ -1,4 +1,5 @@
 import pytz
+import pytest
 from datetime import datetime
 
 from app.macd import MACD
