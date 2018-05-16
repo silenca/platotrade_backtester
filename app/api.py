@@ -5,7 +5,7 @@ from app import app
 from app.utils import fetch, get_macd_by_id, parse_data
 from app.macd import MACD
 from app.helper import setup_loggin
-from app.bactester import backtest_all
+from app.backtester import backtest_all
 
 logger = setup_loggin()
 
