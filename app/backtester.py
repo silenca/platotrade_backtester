@@ -1,5 +1,3 @@
-import time
-import csv
 import collections
 import pandas as pd
 from itertools import product
@@ -7,6 +5,7 @@ from itertools import product
 from app.macd import MACD
 from app.utils import fetch, parse_date_period
 from test.adviser import calc_advise
+from app.models.backtest import Backtest
 
 
 FAST_PERIOD = range(2, 30)
@@ -17,7 +16,6 @@ INTERVALS = [15, 30, 60, 120, 240, 1440]
 
 def backtest_all(from_, to_, pair):
     cache_data_by_period = {}
-    filename = f'backtest-{time.strftime("%Y-%m-%d %H_%M_%S")}.csv'
 
     for period in INTERVALS:
         data = fetch(pair, time_period={'from': from_, 'to': to_}, interval=period)
@@ -25,32 +23,22 @@ def backtest_all(from_, to_, pair):
 
     items = product(FAST_PERIOD, SLOW_PERIOD, SIGNAL_PERIOD, INTERVALS)
 
-    statistics_fields = ['time', 'wins', 'losses', 'total',
-                         'total_wins', 'total_losses',
-                         'fees', 'macd_parameters']
-
-    with open(filename, 'a') as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames=statistics_fields)
-        writer.writeheader()
 
     def run(item):
         macd = MACD(pair, *item, plato_ids=None)
         data = cache_data_by_period[item[3]]
         stock = macd.calculate_coefficient(data)
         stock['advise'] = calc_advise(stock)
-        backtest = Backtest(stock, stock)
+        backtest = Backtester(stock, stock)
         trades = backtest.calc_trades()
         statistics = backtest.get_statistics(trades)
-        statistics['macd_parameters'] = item
-        statistics['time'] = time.strftime('%H:%M:%S')
-        with open(filename, 'a') as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=statistics_fields)
-            writer.writerow(statistics)
+
+        Backtest.new_backtest(item, item, statistics, from_, to_)
 
     collections.deque(map(run, items))
 
 
-class Backtest:
+class Backtester:
     COMMISSION = 0.002
 
     def __init__(self, buy_data, sell_data):

@@ -1,6 +1,13 @@
+import os
 from flask import Flask
-
+from flask_sqlalchemy import SQLAlchemy
+from app.helper import setup_loggin
 app = Flask(__name__)
-app.debug = True
+logger = setup_loggin()
 
-from app import api
+config_name = os.getenv('env', 'Production')
+
+app.config.from_object(f'config.{config_name}')
+db = SQLAlchemy(app)
+
+from app import api, models
