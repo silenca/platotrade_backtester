@@ -12,8 +12,7 @@ from app.models.backtest import Backtest
 FAST_PERIOD = range(2, 30)
 SLOW_PERIOD = range(10, 40)
 SIGNAL_PERIOD = range(2, 20)
-# INTERVALS = [15, 30, 60, 120, 240, 1440]
-INTERVALS = [1440]
+INTERVALS = [15, 30, 60, 120, 240, 1440]
 
 
 def backtest_all(from_, to_, pair):
