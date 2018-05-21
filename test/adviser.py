@@ -1,6 +1,6 @@
 import datetime
-import os
 
+from numba import jit
 from dateutil.tz import tzlocal
 
 from app.macd import MACD
@@ -37,8 +37,8 @@ def handling_coefficient(data, macd):
     return last_calculation
 
 
+@jit
 def calc_advise(stock):
-    path = os.path.abspath(os.path.join(os.getcwd(), 'tmp/result.csv'))
     signal = stock['macds']  # Your signal line
     macd = stock['macd']  # The MACD that need to cross the signal line
     #                                              to give you a Buy/Sell signal
@@ -46,10 +46,10 @@ def calc_advise(stock):
 
     for i in range(1, len(signal)):
         #                          # If the MACD crosses the signal line upward
-        if macd.iloc[i] > signal.iloc[i] and macd.iloc[i - 1] <= signal.iloc[i - 1]:
+        if macd.values[i] > signal.values[i] and macd.values[i - 1] <= signal.values[i - 1]:
             listLongShort.append("BUY")
         # # The other way around
-        elif macd.iloc[i] < signal.iloc[i] and macd.iloc[i - 1] >= signal.iloc[i - 1]:
+        elif macd.values[i] < signal.values[i] and macd.values[i - 1] >= signal.values[i - 1]:
             listLongShort.append("SELL")
         # # Do nothing if not crossed
         else:
@@ -67,4 +67,4 @@ if __name__ == '__main__':
     macd = MACD('btc_usd', 12, 26, 9, 15, 1)
     stock = macd.get_data(1524873600, 15254784000)
     stock = macd.calculate_coefficient(stock)
-    calc_advise(stock)
+    print(calc_advise(stock))

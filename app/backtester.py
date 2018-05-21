@@ -3,6 +3,7 @@ import collections
 import pandas as pd
 import copy
 from itertools import product
+from numba import jit
 
 from app.macd import MACD
 from app.utils import fetch, parse_date_period
@@ -43,7 +44,7 @@ class Backtester:
     WEEK = 14
     MONTH1 = 30
     MONTH3 = MONTH1 * 3
-    MONTH6 = MONTH1 *6
+    MONTH6 = MONTH1 * 6
 
     def __init__(self, buy_data, sell_data):
         self.buy = buy_data
@@ -51,6 +52,7 @@ class Backtester:
         self.capital = None
         self.lot_size = 1
 
+    @jit
     def calc_trades(self):
         trades = []
         buy = self.buy.loc[self.buy['advise'].isin(['BUY', "SELL"])]
@@ -59,27 +61,27 @@ class Backtester:
 
         wait_signal = 'BUY'
 
-        for index, row in signals.iterrows():
-            if 'BUY' == wait_signal and row['advise'] == 'BUY':
+        for row in signals.itertuples():
+            if 'BUY' == wait_signal and row.advise == 'BUY':
                 # if self.capital is None:
-                self.capital = float(row.get('close'))
+                self.capital = float(row.close)
                 # self.lot_size = (1 - self.COMMISSION) * (self.capital / float(row.get('close')))
-                trades.append({'price_enter': row.get('close'),
-                               'ts_enter': row.get('minute_ts'),
+                trades.append({'price_enter': row.close,
+                               'ts_enter': row.minute_ts,
                                'capital': self.capital,
                                'amount': self.lot_size,
                                'fee_enter': self.lot_size * self.capital * self.COMMISSION
                                })
                 wait_signal = 'SELL'
 
-            elif 'SELL' == wait_signal and row['advise'] == wait_signal:
-                income = self.lot_size * float(row.get('close'))
+            elif 'SELL' == wait_signal and row.advise == wait_signal:
+                income = self.lot_size * float(row.close)
                 fee_exit = income * self.COMMISSION
                 income -= fee_exit
 
-                trades[-1].update({'price_exit': float(row.get('close')),
+                trades[-1].update({'price_exit': float(row.close),
                                    'delta': income - trades[-1]['capital'],
-                                   'ts_exit': row.get('minute_ts'),
+                                   'ts_exit': row.minute_ts,
                                    'fee_exit': fee_exit,
                                    })
                 wait_signal = 'BUY'
