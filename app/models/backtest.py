@@ -25,7 +25,11 @@ class Backtest(db.Model):
     data = db.Column(db.Text)
     extend = db.Column(db.Text)
     name = db.Column(db.Text)
+
     total_month6 = db.Column(db.Float)
+    total_month3 = db.Column(db.Float)
+    total_month1 = db.Column(db.Float)
+    total_week = db.Column(db.Float)
 
     @staticmethod
     def new_backtest(macd_params_buy,
@@ -44,11 +48,14 @@ class Backtest(db.Model):
                              sell_period=macd_params_sell[3],
                              status=3,
                              data=f'{statistics}',
-                             extend = 'main.backtest',
+                             extend='main.backtest',
                              name=f'Buy: {macd_params_buy}, Sell: {macd_params_sell}',
-                             total_month6=statistics['total'],
-                             ts_start = start,
-                             ts_end = end
+                             total_month6=statistics['month6']['total'],
+                             total_month3=statistics['month3']['total'],
+                             total_month1=statistics['month1']['total'],
+                             total_week=statistics['week']['total'],
+                             ts_start=start,
+                             ts_end=end
                              )
 
         db.session.add(_backtest)
