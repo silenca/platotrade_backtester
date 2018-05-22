@@ -1,7 +1,10 @@
 import datetime
+from copy import deepcopy
 import collections
 import copy
 from itertools import product
+from multiprocessing import Pool,  Process
+
 
 from numba import jit
 import pandas as pd
@@ -19,6 +22,7 @@ INTERVALS = [15, 30, 60, 120, 240, 1440]
 
 def backtest_all(from_, to_, pair):
     cache_data_by_period = {}
+    pool = Pool(processes=8)
 
     for period in INTERVALS:
         data = fetch(pair, time_period={'from': from_, 'to': to_}, interval=period)
@@ -28,7 +32,7 @@ def backtest_all(from_, to_, pair):
 
     def run(item):
         macd = MACD(pair, *item, plato_ids=None)
-        data = cache_data_by_period[item[3]]
+        data = deepcopy(cache_data_by_period[item[3]])
         stock = macd.calculate_coefficient(data)
         stock['advise'] = calc_advise(stock)
         backtest = Backtester(stock, stock)
@@ -37,8 +41,8 @@ def backtest_all(from_, to_, pair):
 
         Backtest.new_backtest(item, item, statistics, from_, to_)
 
-    collections.deque(map(run, items))
-
+    # collections.deque(map(run, items))
+        pool.map(run, items)
 
 class Backtester:
     COMMISSION = 0.002
