@@ -1,9 +1,10 @@
 import datetime
 import collections
-import pandas as pd
 import copy
 from itertools import product
+
 from numba import jit
+import pandas as pd
 
 from app.macd import MACD
 from app.utils import fetch, parse_date_period
@@ -52,7 +53,7 @@ class Backtester:
         self.capital = None
         self.lot_size = 1
 
-    @jit
+    # @jit
     def calc_trades(self):
         trades = []
         buy = self.buy.loc[self.buy['advise'].isin(['BUY', "SELL"])]
