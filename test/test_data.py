@@ -24,7 +24,7 @@ def test_skip_data():
 def test_cache_platotradeinfo():
     macd.get_data(1519225472, 1619225472)
 
-intervals = [1, 2, 5, 10, 60, 120, 240, 1440]
+intervals = [1, 2, 5, 10, 60, 120, 240, 1440, 10080]
 
 @pytest.mark.parametrize('interval', intervals)
 def test_fetch(interval):
