@@ -3,6 +3,7 @@ import pytest
 from datetime import datetime
 
 from app.macd import MACD
+from app.utils import fetch
 
 macd = MACD('btc_usd', 12, 26, 9, 60, '1')
 
@@ -22,3 +23,9 @@ def test_skip_data():
 
 def test_cache_platotradeinfo():
     macd.get_data(1519225472, 1619225472)
+
+intervals = [1, 2, 5, 10, 60, 120, 240, 1440]
+
+@pytest.mark.parametrize('interval', intervals)
+def test_fetch(interval):
+    assert fetch("BTC_USD", interval=interval, time_period={'from': 1514764800, 'to': 1526893778})
