@@ -3,9 +3,9 @@ from flask_jsonpify import jsonpify
 
 from app import app
 from app.utils import fetch, get_macd_by_id, parse_data
-from app.macd import MACD
+from app.services.macd import MACD
 from app.helper import setup_loggin
-from app.backtester import backtest_all
+from app.services.backtester import backtest_all
 
 logger = setup_loggin()
 

@@ -3,7 +3,7 @@ import datetime
 from numba import jit
 from dateutil.tz import tzlocal
 
-from app.macd import MACD
+from app.services.macd import MACD
 
 
 def handling_coefficient(data, macd):

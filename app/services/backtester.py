@@ -7,9 +7,9 @@ from itertools import product
 
 import pandas as pd
 
-from app.macd import MACD
+from app.services.macd import MACD
 from app.utils import fetch, parse_date_period
-from test.adviser import calc_advise
+from app.services.adviser import calc_advise
 from app.models.backtest import Backtest
 
 FAST_PERIOD = range(2, 30)

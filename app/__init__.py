@@ -10,4 +10,5 @@ config_name = os.getenv('env', 'Production')
 app.config.from_object(f'config.{config_name}')
 db = SQLAlchemy(app)
 
-from app import api, models
+from app.routes import *
+from app.models import *
