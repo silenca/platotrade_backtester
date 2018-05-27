@@ -3,9 +3,6 @@ import datetime
 from numba import jit
 from dateutil.tz import tzlocal
 
-from app.services.macd import MACD
-
-
 def handling_coefficient(data, macd):
     data = data[macd.time_period]
     stock = macd.calculate_coefficient(data)
@@ -64,6 +61,8 @@ def calc_advise(stock):
 
 
 if __name__ == '__main__':
+    from app.services.macd import MACD
+
     macd = MACD('btc_usd', 12, 26, 9, 15, 1)
     stock = macd.get_data(1524873600, 15254784000)
     stock = macd.calculate_coefficient(stock)
