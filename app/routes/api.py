@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import request, jsonify
 from flask_jsonpify import jsonpify
 
 from app import app
@@ -26,9 +26,9 @@ def get_all_macd_objects():
 
     global macd_objects
 
-
     return jsonpify([m.__dict__ for m in macd_objects])
     
+
 @app.route('/calc', methods=['GET'])
 def calcAll():
     """
@@ -48,13 +48,12 @@ def calcAll():
         except Exception as err:
             return jsonpify(err)
 
-        logger.info(f'keys - {list(data[macd.pair].keys())}')
-        logger.info(f'keys - {type(macd.time_period)}')
         sdf = macd.calculate_coefficient(data[macd.pair][macd.time_period])
         sdf = macd.last_coefficient(sdf)
 
     data = dict() # empty data
     return jsonpify([m.__dict__ for m in macd_objects])
+
 
 @app.route('/addplato', methods=['PUT'])
 def addplato():
@@ -79,7 +78,7 @@ def addplato():
     global macd_objects  
     global data    
 
-    if get_macd_by_id(params['plato_ids'], macd_objects) != None:
+    if get_macd_by_id(params['plato_ids'], macd_objects) is not None:
         return 'Object already exists'
     
     # request to Plato-microservice
@@ -89,19 +88,20 @@ def addplato():
 
     return jsonpify(macd.__dict__)
 
+
 @app.route('/calc/<string:plato_ids>', methods=['PUT'])
 def calc(plato_ids):
     """
     Calculate the new macd-coefficients for existing MACD-object by 'plato_ids'
 
-    :param plato_id: Id of MACD-object
+    :param plato_ids: Id of MACD-object
     :return: dict
     """
     
     global macd_objects
 
     macd = get_macd_by_id(plato_ids, macd_objects)
-    if macd == None:
+    if macd is None:
         return jsonpify({ 'message': 'Object is not exists', 'status': 1 })
 
     try:
