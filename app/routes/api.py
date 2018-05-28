@@ -48,6 +48,8 @@ def calcAll():
         except Exception as err:
             return jsonpify(err)
 
+        logger.info(f'keys - {list(data[macd.pair].keys())}')
+        logger.info(f'keys - {type(macd.time_period)}')
         sdf = macd.calculate_coefficient(data[macd.pair][macd.time_period])
         sdf = macd.last_coefficient(sdf)
 

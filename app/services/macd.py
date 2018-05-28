@@ -49,21 +49,10 @@ class MACD:
     def last_coefficient(self, df):
         self.coefficients = {}
 
-        # self.coefficients[str(df.iloc[-2]['ts'])] = {
-        #     'macd': df.iloc[-2]['macd'],
-        #     'macdh': df.iloc[-2]['macdh'],
-        #     'macds': df.iloc[-2]['macds'],
-        # }
-        #
-        # self.coefficients[str(df.iloc[-1]['ts'])] = {
-        #     'macd': df.iloc[-1]['macd'],
-        #     'macdh': df.iloc[-1]['macdh'],
-        #     'macds': df.iloc[-1]['macds'],
-        # }
         df['advise'] = calc_advise(df)
         # self.timestamp = str(df.iloc[-1]['ts'])
 
-        self.coefficients = df[-4:].to_json(orient='index')
+        self.coefficients = df[-4:].to_dict('index')
 
     def get_data(self, _from, _to):
         _from = _from - self.time_period * 60 * self.skip_data

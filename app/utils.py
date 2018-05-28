@@ -52,23 +52,7 @@ def parse_data(data):
 
     d = dict()
     for key in data.keys():
-        rows = []
-        for obj in reversed(data[key]):
-            minute_ts = datetime.datetime.fromtimestamp(int(obj['minute_ts'])).strftime('%Y-%m-%d %H:%M:%S')
-            ts = int(obj['minute_ts'])
-            v = obj['v']
-            l = obj['l']
-            h = obj['h']
-            c = obj['c']
-            vo = obj['vo']
-            o = obj['o']
-            rows.append([minute_ts, ts, vo, h, c, o, l, v])
-        
-        sdf = StockDataFrame.retype(
-            pd.DataFrame(rows, columns=['date', 'ts', 'volume', 'high', 'close', 'open', 'low', 'amount'])
-        )
-
-        d[key] = sdf
+        d[int(key)] = parse_date_period(data[key])
 
     return d
 
