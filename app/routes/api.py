@@ -1,11 +1,19 @@
 from flask import request, jsonify
 from flask_jsonpify import jsonpify
+from numpy import place, random
 
 from app import app
+from app.services.RateLoader import RateLoader
 from app.utils import fetch, get_macd_by_id, parse_data
 from app.services.macd import MACD
 from app.helper import setup_loggin
 from app.services.backtester import backtest_all
+from app.services.MacdDict import MacdDict
+from app.models.plato import Plato
+from random import randrange
+from functools import reduce
+from app.services.GlobalBacktest import GlobalBacktest
+from time import time
 
 logger = setup_loggin()
 
@@ -15,167 +23,114 @@ data = dict()
 # app = Flask(__name__)
 # app.debug = True
 
+@app.route('/plato/list', methods=['GET'])
+def getAllPlatos():
+    platos = MacdDict().getAll()
 
-@app.route('/macd', methods=['GET'])
-def get_all_macd_objects():
-    """
-    Return all MACD-objects
+    return jsonpify([platos[p].json() for p in platos])
 
-    :return: list of dict
-    """
+@app.route('/plato/add', methods=['GET'])
+def addPlato():
+    for field in ['pair', 'fast_period', 'slow_period', 'signal_period', 'time_period']:
+        if request.args.get(field) is None:
+            return jsonpify({ 'message': f'Field "{field}" is required', 'status': '1' })
 
-    global macd_objects
+    pair = request.args.get('pair');
+    fast = request.args.get('fast_period');
+    slow = request.args.get('slow_period');
+    signal = request.args.get('signal_period');
+    time = request.args.get('time_period');
 
-    return jsonpify([m.__dict__ for m in macd_objects])
-    
+    plato = Plato(pair, fast, slow, signal, time)
 
-@app.route('/calc', methods=['GET'])
-def calcAll():
-    """
-    Calculate the new macd-coefficients for all MACD-objects
+    MacdDict().add(plato)
 
-    :return: List of serialized MACD-objects
-    """
-    global macd_objects
-    global data
+    return jsonpify(plato.json())
 
-    for macd in macd_objects:
-        try:
-            if macd.pair not in data:
-                data[macd.pair] = fetch(macd.pair) # get data
-                data[macd.pair] = parse_data(data[macd.pair]) # in each pair is stored sdf-data itself
+@app.route('/plato/remove/<string:key>', methods=['POST', 'GET'])
+def removePlato(key):
+    MacdDict().remove(key);
+    return jsonpify({'status': 0, 'message': 'Object has been deleted'})
 
-        except Exception as err:
-            return jsonpify(err)
+@app.route('/plato/calculateall', methods=['GET'])
+def calculation():
+    platos = MacdDict().getAll();
 
-        sdf = macd.calculate_coefficient(data[macd.pair][macd.time_period])
-        sdf = macd.last_coefficient(sdf)
+    rateData = RateLoader().fetchLast(platos);
 
-    data = dict() # empty data
-    return jsonpify([m.__dict__ for m in macd_objects])
+    for key in platos:
+        plato = platos[key];
 
+        stockData = rateData.getSdf(plato.pair, plato.period)
 
-@app.route('/addplato', methods=['PUT'])
-def addplato():
-    """
-    Create the new MACD-object and store it in 'macd_objects' list globally
+        plato.calculateLast(stockData)
 
-    :query_param pair
-    :query_param fast_period
-    :query_param slow_period
-    :query_param signal_period    
-    :query_param time_period
-    :query_param plato_ids
+    del rateData
 
-    :return: dict
-    """
+    return getAllPlatos()
 
+@app.route('/plato/calculate/<string:key>', methods=['GET'])
+def calculationSingle(key):
+    plato = MacdDict().get(key)
+
+    if plato is None:
+        return jsonpify({'message': 'No plato found', 'status': '1'})
+
+    stockData = RateLoader()\
+                    .fetchLast({0: plato})\
+                        .getSdf(plato.pair, plato.period)
+
+    plato.calculateLast(stockData)
+
+    return jsonpify(plato.json())
+
+@app.route('/plato/backtest/run', methods=['POST', 'GET'])
+def runBakctest():
     params = request.args
 
-    if MACD.paramsIsNotValid(params):
-        return 'Error'
+    for key in ['pair', 'from', 'to', 'coeffs[0]', 'coeffs[1]']:
+        if params.get(key) is None:
+            return jsonpify({ 'result': False, 'message': f'Param "{key}" is required' })
 
-    global macd_objects  
-    global data    
+    pair = params['pair']
+    tsFrom = int(params['from'])
+    tsTo = int(params['to'])
 
-    if get_macd_by_id(params['plato_ids'], macd_objects) is not None:
-        return 'Object already exists'
-    
-    # request to Plato-microservice
-    macd = MACD(params['pair'], params['fast_period'], params['slow_period'], params['signal_period'], params['time_period'], params['plato_ids'])
-    
-    macd_objects.append(macd)
+    platos = {}
+    for coeff in [params['coeffs[0]'].split('_'), params['coeffs[1]'].split('_')]:
+        plato = Plato(pair, coeff[0], coeff[1], coeff[2], coeff[3])
+        platos[plato.key()] = plato
 
-    return jsonpify(macd.__dict__)
+    rateData = RateLoader().fetch(platos, tsFrom, tsTo)
 
+    for key in platos:
+        stockData = rateData.getSdf(plato.pair, plato.period)
 
-@app.route('/calc/<string:plato_ids>', methods=['PUT'])
-def calc(plato_ids):
-    """
-    Calculate the new macd-coefficients for existing MACD-object by 'plato_ids'
+        plato.calculateAll(stockData)
 
-    :param plato_ids: Id of MACD-object
-    :return: dict
-    """
-    
-    global macd_objects
-
-    macd = get_macd_by_id(plato_ids, macd_objects)
-    if macd is None:
-        return jsonpify({ 'message': 'Object is not exists', 'status': 1 })
-
-    try:
-        sdf = fetch(macd.pair, macd.time_period)
-    except Exception as err:
-        return jsonpify({ 'message': err, 'status': 1 })
-
-    sdf = macd.calculate_coefficient(sdf)
-
-    return jsonpify(macd.__dict__)
+    return jsonify([platos[key].json(True) for key in platos])
 
 
-@app.route('/delete/macd/<string:plato_ids>', methods=['DELETE'])
-def delete_macd_object(plato_ids):
-    """
-    Delete the MACD-object by 'plato_ids'
-
-    :param plato_id: Id of MACD-object
-
-    :return: None or dict
-    """
-    global macd_objects
-
-    macd = get_macd_by_id(plato_ids, macd_objects)
-
-    if macd != None:
-        macd_objects.remove(macd)
-        return jsonpify({ 'message': 'Object has been deleted', 'status': 0 })
-    else:
-        return jsonpify({ 'message': 'Object is not exists', 'status': 1 })
-
-
-@app.route('/backtester', methods=['GET'])
-def backtester():
-    """
-        Create the new MACD-object and calculated macd-coefficients for whole period
-
-        :query_param pair
-        :query_param fast_period
-        :query_param slow_period
-        :query_param signal_period
-        :query_param period
-        :query_param from
-        :query_param to
-
-        :return: dict
-        """
-
+@app.route('/plato/backtest/runall', methods=['GET'])
+def runGlobalBacktest():
     params = request.args
-    macd_coeff = [params['coeffs[0]'].split('_'),
-                  params['coeffs[1]'].split('_')]
+    for field in ['from', 'to', 'pair']:
+        if params.get(field) is None:
+            return jsonpify({ 'message': f'Param "{field}" is required', 'status': '1' })
 
-    macds = []
-    for coeff in macd_coeff:
-        macd = MACD(params['pair'], coeff[0], coeff[1], coeff[2], coeff[3], plato_ids=None)
-        data = macd.get_data(int(params['from']), int(params['to']))
-        stock = macd.calculate_coefficient(data)
-        stock = stock.set_index('minute_ts')
-        macd.coefficients = stock[['macd', 'macdh', 'macds', 'close']].T.to_dict()
-        macds.append(macd)
-    return jsonify([macd.__dict__ for macd in macds])
+    # Run all backtests
+    ts = time()
+    itemsCount = GlobalBacktest(params['pair'], int(params['from']), int(params['to'])).run()
 
-
-@app.route('/globalbacktest', methods=['GET'])
-def global_backtest():
     """
         Run calculate backtest for all combinations
         :query_param pair
         :query_param from
         :query_param to
         """
-    params = request.args
-    backtest_all(int(params['from']), int(params['to']), params['pair'])
 
+    #backtest_all(int(params['from']), int(params['to']), params['pair'])
+    return jsonpify({ 'message': 'Done', 'status': '1', 'Total': time()-ts, 'Size': itemsCount })
 
 if __name__ == '__main__':
     app.run(debug=True) # Run app
