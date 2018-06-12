@@ -1,5 +1,11 @@
+from copy import deepcopy
+
 from pandas import DataFrame, Series, to_datetime
 from json import dump
+
+from stockstats import StockDataFrame
+
+from app.models.RateData import RateData
 from app.services.RateLoader import RateLoader
 from app.models.plato import Plato
 from itertools import product
@@ -13,8 +19,8 @@ from app.models.backtest import Backtest
 
 class GlobalBacktest:
 
-    FAST_PERIOD = range(2, 30)
-    SLOW_PERIOD = range(10, 40)
+    FAST_PERIOD = [10]#range(2, 30)
+    SLOW_PERIOD = [26]#range(10, 40)
     SIGNAL_PERIOD = range(2, 20)
     INTERVALS = [15, 30, 60, 120, 240, 1440]
 
@@ -33,17 +39,15 @@ class GlobalBacktest:
         print(f'All data loaded in {time() - ts}s')
 
     def run(self):
-        iterators = [self.FAST_PERIOD, self.SLOW_PERIOD, self.SIGNAL_PERIOD, self.INTERVALS]
-        items = product(*iterators)
-
-        pool = Pool(processes=8, maxtasksperchild=5)
-        positiveCalculations = pool.starmap(self.calculate, self.getItems())
+        pool = Pool(processes=8)
+        positiveCalculations = pool.starmap(self.calculate, self.getItems(self.pair))
         pool.close()
         pool.join()
 
         backtests = []
         for data in positiveCalculations:
-            plato, tsFrom, tsTo, statistics = data
+            plato, tsFrom, tsTo, statistics, elapsed = data
+            print(f'#{plato.key()} Elapsed: '+'%.3f'%elapsed)
             if statistics is not None:
                 backtests.append({
                     'buy_fast': plato.fast,
@@ -67,15 +71,18 @@ class GlobalBacktest:
                     'ts_end': tsTo
                 })
         print(f'Saving {len(backtests)} backtests');
+
         ts = time()
-        Backtest.saveMany(backtests)
+        #Backtest.saveMany(backtests)
         print('Saved in %.4fs' % (time() - ts))
-        return reduce(mul, map(len, iterators), 1);
+        print(f'There are {self.countItems(self.pair)} items and {(self.tsTo - self.tsFrom)//(24*60*60)} days')
+        return self.countItems(self.pair);
 
-    def calculate(self, plato, stockData):
+    def calculate(self, plato, stockData:StockDataFrame):
         ts = time()
-        plato.calculateAll(stockData)
 
+        plato.calculateAll(stockData)
+        ts = time()
         statistics = self.calculateDealStatistics(plato);
 
         isPositive = False
@@ -84,7 +91,7 @@ class GlobalBacktest:
                 isPositive = True
                 break
 
-        return (plato, self.tsFrom, self.tsTo, statistics if isPositive else None)
+        return (plato, self.tsFrom, self.tsTo, statistics if isPositive else None, time()-ts)
 
     def calculateDealStatistics(self, plato):
         dfDeals = DataFrame(columns=['price_enter', 'price_exit', 'ts_enter', 'ts_exit', 'dealTs'])
@@ -120,36 +127,41 @@ class GlobalBacktest:
         for idx, period in self.STATISTICS_PERIODS.items():
             dateLimit = (dateTo + relativedelta(**period)).timestamp()
             stGroup = dfDeals[dfDeals.dealTs >= dateLimit]
-            stGroup['interval'] = str(idx)
-            stGroup['amount'] = self.lot_size
+            if stGroup.empty:
+                statistics[idx] = dict(
+                    feesAmount=0, totalAmount=0, winsAmount=0, lossesAmount=0,
+                    wins='0', losses='0', total='0', calcs=[]
+                )
+                continue
+
+            stGroup.insert(0, 'interval', str(idx))
+            stGroup.insert(0, 'amount', self.lot_size)
 
             winsGroup = stGroup[stGroup.delta > 0]
             lossesGroup = stGroup[stGroup.delta <= 0]
 
-            try:
-                statistics[idx] = {
-                    'feesAmount': round(stGroup['fees'].sum(), 2),
-                    'totalAmount': round(stGroup['delta'].sum(), 2),
-                    'winsAmount': round(winsGroup['delta'].sum(), 2),
-                    'lossesAmount': round(abs(lossesGroup['delta'].sum()), 2),
-                    'wins': '%d' % winsGroup['delta'].count(),
-                    'losses': '%d' % lossesGroup['delta'].count(),
-                    'total': '%d' % stGroup['delta'].count(),
-                    'calcs': stGroup.to_dict('index')
-                }
-            except TypeError:
-                print('********** [TYPE ERROR] *************')
-                print(f'Plato: {plato.key()}')
-                print('Group:', stGroup)
-
+            statistics[idx] = {
+                'feesAmount': round(stGroup['fees'].sum(), 2),
+                'totalAmount': round(stGroup['delta'].sum(), 2),
+                'winsAmount': round(winsGroup['delta'].sum(), 2),
+                'lossesAmount': round(abs(lossesGroup['delta'].sum()), 2),
+                'wins': '%d' % winsGroup['delta'].count(),
+                'losses': '%d' % lossesGroup['delta'].count(),
+                'total': '%d' % stGroup['delta'].count(),
+                'calcs': stGroup.to_dict('index')
+            }
 
         return statistics
 
-    def getItems(self):
-        iterators = [self.FAST_PERIOD, self.SLOW_PERIOD, self.SIGNAL_PERIOD, self.INTERVALS]
+    def getItems(self, pair):
+        iterators = self.getIterators(pair)
+        items = list(product(*iterators))
+        for pair, fast, slow, signal, (period, rateData) in items:
+            yield (Plato(pair, fast, slow, signal, period), rateData)
 
-        for item in product(*iterators):
-            yield (
-                Plato(self.pair, item[0], item[1], item[2], item[3]),
-                self.rateData.getSdf(self.pair, item[3])
-            )
+    def countItems(self, pair):
+        return reduce(mul, map(len, self.getIterators(pair)), 1);
+
+    def getIterators(self, pair):
+        sdfs = self.rateData.getPairSdf(pair)
+        return [[pair], self.FAST_PERIOD, self.SLOW_PERIOD, self.SIGNAL_PERIOD, sdfs.items()]

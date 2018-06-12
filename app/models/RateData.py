@@ -40,6 +40,12 @@ class RateData:
 
         return list(self.data[pair][period].values())
 
+    def getPairSdf(self, pair):
+        sdfs = {}
+        for period in self.data[pair]:
+            sdfs[period] = self.getSdf(pair, period)
+        return sdfs
+
     def getSdf(self, pair, period) -> StockDataFrame:
         key = "_".join(map(str, [pair, period]))
         if key not in self.sdfCache:
