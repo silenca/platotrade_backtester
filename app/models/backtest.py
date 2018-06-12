@@ -31,6 +31,8 @@ class Backtest(db.Model):
     total_month1 = db.Column(db.Float)
     total_week = db.Column(db.Float)
 
+    type = db.Column(db.Integer)
+
     @staticmethod
     def new_backtest(macd_params_buy,
                      macd_params_sell,
@@ -50,10 +52,10 @@ class Backtest(db.Model):
                              data=f'{statistics}',
                              extend='main.backtest',
                              name=f'Buy: {macd_params_buy}, Sell: {macd_params_sell}',
-                             total_month6=statistics['month6']['total'],
-                             total_month3=statistics['month3']['total'],
-                             total_month1=statistics['month1']['total'],
-                             total_week=statistics['week']['total'],
+                             total_month6=statistics['4']['total'],
+                             total_month3=statistics['3']['total'],
+                             total_month1=statistics['2']['total'],
+                             total_week=statistics['1']['total'],
                              ts_start=start,
                              ts_end=end
                              )
@@ -61,6 +63,12 @@ class Backtest(db.Model):
         db.session.add(_backtest)
         db.session.commit()
 
+    @staticmethod
+    def saveMany(backtests):
+        for params in backtests:
+            db.session.add(Backtest(**params))
+
+        db.session.commit()
 
 if __name__ == '__main__':
 

@@ -31,13 +31,6 @@ class RateLoader:
             if not data.has(plato.pair, plato.period):
                 rates = self.__fetchByPairTsAndPeriod(plato.pair, tsFrom, tsTo, plato.period)
 
-                print('DEBUG', {
-                    'pair': plato.pair,
-                    'from': tsFrom,
-                    'to': tsTo,
-                    'period': plato.period
-                }, len(rates))
-
                 data.load(plato.pair, plato.period, rates)
 
         return data

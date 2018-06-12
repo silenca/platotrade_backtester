@@ -1,24 +1,16 @@
 from flask import request, jsonify
 from flask_jsonpify import jsonpify
-from numpy import place, random
 
 from app import app
-from app.services.RateLoader import RateLoader
-from app.utils import fetch, get_macd_by_id, parse_data
-from app.services.macd import MACD
-from app.helper import setup_loggin
-from app.services.backtester import backtest_all
-from app.services.MacdDict import MacdDict
-from app.models.plato import Plato
-from random import randrange
-from functools import reduce
 from app.services.GlobalBacktest import GlobalBacktest
+from app.services.MacdDict import MacdDict
+from app.services.RateLoader import RateLoader
+from app.helper import setup_loggin
+from app.models.plato import Plato
+
 from time import time
 
 logger = setup_loggin()
-
-macd_objects = []
-data = dict()
 
 # app = Flask(__name__)
 # app.debug = True
@@ -121,16 +113,8 @@ def runGlobalBacktest():
     # Run all backtests
     ts = time()
     itemsCount = GlobalBacktest(params['pair'], int(params['from']), int(params['to'])).run()
-
-    """
-        Run calculate backtest for all combinations
-        :query_param pair
-        :query_param from
-        :query_param to
-        """
-
-    #backtest_all(int(params['from']), int(params['to']), params['pair'])
-    return jsonpify({ 'message': 'Done', 'status': '1', 'Total': time()-ts, 'Size': itemsCount })
+    print(f'{itemsCount} items was processed in ' + '%.3f s'%(time()-ts))
+    return jsonpify({ 'message': 'Done', 'status': '1', 'Total': '%.3f s'%(time()-ts), 'Size': itemsCount })
 
 if __name__ == '__main__':
     app.run(debug=True) # Run app
