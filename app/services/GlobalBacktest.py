@@ -185,6 +185,9 @@ class Tester():
 
         statistics = StatisticsCalc(end).calculate(plato);
 
+        del plato.adviseData
+        del stockData
+
         isPositive = False
         for period in statistics:
             if statistics[period]['totalAmount'] > 0:
@@ -263,6 +266,8 @@ class StatisticsCalc():
                 'total': '%d' % stGroup['delta'].count(),
                 'calcs': []  # stGroup.to_dict('index')
             }
+
+        del deals
 
         return statistics
 
