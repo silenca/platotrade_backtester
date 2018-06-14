@@ -63,6 +63,13 @@ class RateData:
             dataFrame.insert(0, 'date', date)
             dataFrame['date'] = dataFrame['date'].dt.strftime('%Y-%m-%d %H:%M:%S')
 
-            self.sdfCache[key] = StockDataFrame.retype(dataFrame)
+            stockData = StockDataFrame.retype(dataFrame)
+
+            for i in range(2, 40):
+                stockData[f'close_{i}_ema']
+
+            stockData.set_index('minute_ts')
+
+            self.sdfCache[key] = stockData
 
         return self.sdfCache[key]

@@ -1,3 +1,4 @@
+from collections import deque
 from copy import deepcopy
 
 from pandas import DataFrame, Series, to_datetime
@@ -19,8 +20,8 @@ from app.models.backtest import Backtest
 
 class GlobalBacktest:
 
-    FAST_PERIOD = [10]#range(2, 30)
-    SLOW_PERIOD = [26]#range(10, 40)
+    FAST_PERIOD = range(2, 30)
+    SLOW_PERIOD = range(10, 40)
     SIGNAL_PERIOD = range(2, 20)
     INTERVALS = [15, 30, 60, 120, 240, 1440]
 
@@ -39,15 +40,19 @@ class GlobalBacktest:
         print(f'All data loaded in {time() - ts}s')
 
     def run(self):
-        pool = Pool(processes=8)
+        ts = time()
+        pool = Pool(processes=1, maxtasksperchild=5)
         positiveCalculations = pool.starmap(self.calculate, self.getItems(self.pair))
+        #positiveCalculations = deque(self.smap(self.calculate, self.getItems(self.pair)))
         pool.close()
         pool.join()
+        print('Pool calculation is done in '+'%.3fs'%(time()-ts))
 
         backtests = []
+        print(f'There was {len(positiveCalculations)} items')
+
         for data in positiveCalculations:
             plato, tsFrom, tsTo, statistics, elapsed = data
-            print(f'#{plato.key()} Elapsed: '+'%.3f'%elapsed)
             if statistics is not None:
                 backtests.append({
                     'buy_fast': plato.fast,
@@ -80,9 +85,8 @@ class GlobalBacktest:
 
     def calculate(self, plato, stockData:StockDataFrame):
         ts = time()
-
         plato.calculateAll(stockData)
-        ts = time()
+
         statistics = self.calculateDealStatistics(plato);
 
         isPositive = False
@@ -93,23 +97,21 @@ class GlobalBacktest:
 
         return (plato, self.tsFrom, self.tsTo, statistics if isPositive else None, time()-ts)
 
-    def calculateDealStatistics(self, plato):
+    def calculateDealStatistics(self, plato:Plato):
         dfDeals = DataFrame(columns=['price_enter', 'price_exit', 'ts_enter', 'ts_exit', 'dealTs'])
 
         buy = None
-        buyTs = None
-        for date, advise in plato.advises.items():
+        for date, advise in plato.adviseData.iterrows():
             if buy is None:
                 if advise['advise'] == Plato.ADVISE_BUY:
                     buy = advise
-                    buyTs = date
             elif advise['advise'] == Plato.ADVISE_SELL:
                 dfDeals.loc[date] = Series({
                     'price_enter': float(buy['close']),
                     'price_exit': float(advise['close']),
-                    'ts_enter': int(buyTs),
-                    'ts_exit': int(date),
-                    'dealTs': int(date)
+                    'ts_enter': int(buy['minute_ts']),
+                    'ts_exit': int(advise['minute_ts']),
+                    'dealTs': int(advise['minute_ts'])
                 })
                 buy = None
 
@@ -148,16 +150,20 @@ class GlobalBacktest:
                 'wins': '%d' % winsGroup['delta'].count(),
                 'losses': '%d' % lossesGroup['delta'].count(),
                 'total': '%d' % stGroup['delta'].count(),
-                'calcs': stGroup.to_dict('index')
+                'calcs': []#stGroup.to_dict('index')
             }
 
         return statistics
 
     def getItems(self, pair):
         iterators = self.getIterators(pair)
-        items = list(product(*iterators))
-        for pair, fast, slow, signal, (period, rateData) in items:
-            yield (Plato(pair, fast, slow, signal, period), rateData)
+        items = product(*iterators)
+
+        def gen(data):
+            pair, fast, slow, signal, (period, rateData) = data
+            return (Plato(pair, fast, slow, signal, period), rateData)
+
+        return map(gen, items)
 
     def countItems(self, pair):
         return reduce(mul, map(len, self.getIterators(pair)), 1);
@@ -165,3 +171,7 @@ class GlobalBacktest:
     def getIterators(self, pair):
         sdfs = self.rateData.getPairSdf(pair)
         return [[pair], self.FAST_PERIOD, self.SLOW_PERIOD, self.SIGNAL_PERIOD, sdfs.items()]
+
+    def smap(self, func, items):
+        for item in items:
+            return func(*item)

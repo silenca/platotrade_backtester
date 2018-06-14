@@ -1,5 +1,5 @@
+import numpy as np
 from stockstats import StockDataFrame
-import datetime
 
 class Plato:
 
@@ -17,16 +17,12 @@ class Plato:
         self.period = int(period)
         self.coefficients = {}
         self.advises = {}
+        self.adviseData = None
 
     def key(self, separator: str="_"):
         return separator.join(map(str, [self.fast, self.slow, self.signal, self.period]))
 
-    def json(self, skipEmptyAdvises:bool = False):
-        advises = {}
-        for ts in self.advises:
-            if not skipEmptyAdvises or self.advises[ts]['advise'] != self.ADVISE_NONE:
-                advises[ts] = self.advises[ts]
-
+    def json(self):
         return {
             'pair': self.pair,
             'fast_period': self.fast,
@@ -34,7 +30,7 @@ class Plato:
             'signal_period': self.signal,
             'time_period': self.period,
             #'coefficients': self.coefficients,
-            'advises': advises,
+            'advises': self.advises,
             'plato_ids': self.key("0"), # Deprecated
             'key': self.key()
         };
@@ -42,50 +38,30 @@ class Plato:
     def calculateLast(self, stockData:StockDataFrame):
         stockData = self.__prepareData(stockData)
 
-        self.__updateCoefficients(stockData[-4:])
+        self.__calculateAdvises(stockData[-4:])
 
     def calculateAll(self, stockData:StockDataFrame):
         stockData = self.__prepareData(stockData)
 
-        self.__updateCoefficients(stockData[(self.SKIP_COUNT - 1):])
-
-    def calculateAdvises(self):
-        self.advises = {};
-
-        lastCoeff = None
-        for date in self.coefficients:
-            coeff = self.coefficients[date]
-
-            if lastCoeff is not None:
-                if coeff['macdh'] > 0 and lastCoeff['macdh'] < 0:
-                    type = self.ADVISE_BUY
-                elif coeff['macdh'] < 0 and lastCoeff['macdh'] > 0:
-                    type = self.ADVISE_SELL
-                else:
-                    type = self.ADVISE_NONE
-
-                self.advises[date] = {
-                    'ts': date,
-                    'date': datetime.datetime.fromtimestamp(int(date)).strftime('%Y-%m-%d %H:%M:%S'),
-                    'advise': type,
-                    'close': coeff['close']
-                }
-
-            lastCoeff = coeff
-
+        self.__calculateAdvises(stockData[(self.SKIP_COUNT - 1):], False)
 
     def __prepareData(self, stockData:StockDataFrame) -> StockDataFrame:
-        fast = stockData[f'close_{self.fast}_ema']
-        slow = stockData[f'close_{self.slow}_ema']
+        stockData['macd'] = stockData[f'close_{self.fast}_ema'].values - stockData[f'close_{self.slow}_ema'].values
 
-        stockData['macd'] = fast - slow
-        stockData['macds'] = stockData[f'macd_{self.signal}_ema']
-        stockData['macdh'] = 2 * (stockData['macd'] - stockData['macds'])
+        stockData['macds'] = stockData[f'macd_{self.signal}_ema'].values
+        stockData['macdh'] = 2 * (stockData['macd'].values - stockData['macds'].values)
+
+        # Generating Advises based on macdh
+        stockData['pos'] = np.where(stockData.macdh > 0, 1, 0)
+        stockData['prevPos'] = np.where(stockData.macdh.shift(1) > 0, 1, 0)
+        stockData['advise'] = np.where(stockData.pos - stockData.prevPos < 0, self.ADVISE_SELL,
+                               np.where(stockData.pos - stockData.prevPos > 0, self.ADVISE_BUY, self.ADVISE_NONE))
+        del stockData['pos']
+        del stockData['prevPos']
 
         return stockData
 
-    def __updateCoefficients(self, stockData:StockDataFrame):
-        coeffs = stockData.set_index('minute_ts')
-
-        self.coefficients = coeffs[['macd', 'macds', 'macdh', 'close']].to_dict('index')
-        self.calculateAdvises()
+    def __calculateAdvises(self, stockData:StockDataFrame, save: bool=True):
+        self.adviseData = stockData[['minute_ts', 'close', 'advise']]
+        if save:
+            self.advises = stockData[['minute_ts', 'close', 'advise']].to_dict('index')
