@@ -10,6 +10,7 @@ from stockstats import StockDataFrame
 from app.models.backtest import Backtest
 from app.models.plato import Plato
 
+from json import dumps
 
 class RTBacktest():
 
@@ -69,8 +70,8 @@ class RTBacktest():
             sell_period=self.plato.period,
             status='3',
             type='1',
-            data=f'{dict(statistics=stats)}',
-            extend='main.backtest',
+            data=f'{dumps(dict(statistics=stats))}',
+            extend='|main.backtest|',
             name=f'Buy: {self.plato.key()}, Sell: {self.plato.key()}',
             total_month6=float(stats['4']['profit']),
             total_month3=float(stats['3']['profit']),
