@@ -9,6 +9,7 @@ from app.helper import setup_loggin
 from app.models.plato import Plato
 
 from time import time
+from json import dumps
 
 logger = setup_loggin()
 
@@ -17,11 +18,9 @@ logger = setup_loggin()
 
 @app.route('/plato/list', methods=['GET'])
 def getAllPlatos():
-    platos = MacdDict().getAll()
+    return jsonpify({p.key(): p.json() for p in MacdDict().getAll().values()})
 
-    return jsonpify([platos[p].json() for p in platos])
-
-@app.route('/plato/add', methods=['GET'])
+@app.route('/plato/add', methods=['POST', 'GET'])#GET for DEBUG
 def addPlato():
     for field in ['pair', 'fast_period', 'slow_period', 'signal_period', 'time_period']:
         if request.args.get(field) is None:
@@ -39,7 +38,7 @@ def addPlato():
 
     return jsonpify(plato.json())
 
-@app.route('/plato/remove/<string:key>', methods=['POST', 'GET'])
+@app.route('/plato/remove/<string:key>', methods=['POST', 'GET'])# GET for DEBUG
 def removePlato(key):
     MacdDict().remove(key);
     return jsonpify({'status': 0, 'message': 'Object has been deleted'})

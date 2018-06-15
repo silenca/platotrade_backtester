@@ -1,7 +1,7 @@
 import numpy as np
 from stockstats import StockDataFrame
 
-class Plato:
+class Plato():
 
     SKIP_COUNT = 34
 
@@ -15,30 +15,33 @@ class Plato:
         self.slow = int(slow)
         self.signal = int(signal)
         self.period = int(period)
-        self.coefficients = {}
         self.advises = {}
         self.adviseData = None
+
+    def __repr__(self):
+        return self.json()
 
     def key(self, separator: str="_"):
         return separator.join(map(str, [self.fast, self.slow, self.signal, self.period]))
 
     def json(self):
-        return {
-            'pair': self.pair,
-            'fast_period': self.fast,
-            'slow_period': self.slow,
-            'signal_period': self.signal,
-            'time_period': self.period,
-            #'coefficients': self.coefficients,
-            'advises': self.advises,
-            'plato_ids': self.key("0"), # Deprecated
-            'key': self.key()
-        };
+        return dict(
+            pair=self.pair,
+            fast_period=self.fast,
+            slow_period=self.slow,
+            signal_period=self.signal,
+            time_period=self.period,
+            advises=self.advises,
+            key=self.key()
+        );
 
     def calculateLast(self, stockData:StockDataFrame):
         stockData = self.__prepareData(stockData)
 
-        self.__calculateAdvises(stockData[-4:])
+        self.__calculateAdvises(stockData[-3:])
+
+    def calculateReal(self, sdf: StockDataFrame, lastrows: int=3) -> StockDataFrame:
+        return self.__prepareData(sdf)[-lastrows:][['close', 'advise']]
 
     def calculateAll(self, stockData:StockDataFrame):
         stockData = self.__prepareData(stockData)
@@ -56,6 +59,10 @@ class Plato:
         stockData['prevPos'] = np.where(stockData.macdh.shift(1) > 0, 1, 0)
         stockData['advise'] = np.where(stockData.pos - stockData.prevPos < 0, self.ADVISE_SELL,
                                np.where(stockData.pos - stockData.prevPos > 0, self.ADVISE_BUY, self.ADVISE_NONE))
+        #idx = stockData.index.values[-1]
+        #if idx <= 1529042400 and idx >= 1529038800:
+        #    print(stockData.index.values[-1], stockData[-3:])
+
         del stockData['pos']
         del stockData['prevPos']
 
