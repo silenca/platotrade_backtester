@@ -1,15 +1,11 @@
-from collections import deque
-from copy import deepcopy
-
 from pandas import DataFrame, Series, to_datetime
-from json import dump
+from json import dumps
 
 from stockstats import StockDataFrame
 
-from app.models.RateData import RateData
 from app.services.RateLoader import RateLoader
 from app.models.plato import Plato
-from itertools import product
+from itertools import product, combinations_with_replacement
 from time import time
 from datetime import datetime
 from multiprocessing import Pool
@@ -17,6 +13,8 @@ from functools import reduce
 from operator import mul
 from dateutil.relativedelta import relativedelta
 from app.models.backtest import Backtest
+
+import logging
 
 class GlobalBacktest:
     STATISTICS_PERIODS = {'1': {'days': -7}, '2': {'months': -1}, '3': {'months': -3}, '4': {'months': -6}}
@@ -29,55 +27,58 @@ class GlobalBacktest:
         self.tsTo = tsTo
         self.pair = pair
         self.lot_size = lot_size
+        self.logger = logging.getLogger('bt')
 
         rateData = RateLoader().fetchPeriods(self.pair, self.tsFrom, self.tsTo, Generator.INTERVALS)
         self.rateData = rateData.getPairSdf(self.pair)
-        print(f'All data loaded in {time() - ts}s')
+        self.log(f'All data loaded in {time() - ts}s')
+
+    def log(self, msg):
+        self.logger.info(msg)
 
     def run(self):
         ts = time()
 
         generator = Generator(self.pair, self.rateData, self.tsFrom, self.tsTo)
 
-        pool = Pool(processes=8, maxtasksperchild=5)
+        pool = Pool(processes=4, maxtasksperchild=10)
         positiveCalculations = pool.starmap(Tester.calculate, generator.getItems())
         #positiveCalculations = deque(self.smap(Tester.calculate, generator.getItems()))
         pool.close()
         pool.join()
-        print('Pool calculation is done in '+'%.3fs'%(time()-ts))
+        self.log('Pool calculation is done in '+'%.3fs'%(time()-ts))
 
         backtests = []
-        print(f'There was {len(positiveCalculations)} items')
+        self.log(f'There was {len(positiveCalculations)} items')
         for data in positiveCalculations:
-            plato, tsFrom, tsTo, statistics, elapsed = data
+            penter, pexit, tsFrom, tsTo, statistics, elapsed = data
             if statistics is not None:
-                backtests.append({
-                    'buy_fast': plato.fast,
-                    'buy_slow': plato.slow,
-                    'buy_signal': plato.signal,
-                    'buy_period': plato.period,
-                    'sell_fast': plato.fast,
-                    'sell_slow': plato.slow,
-                    'sell_signal': plato.signal,
-                    'sell_period': plato.period,
-                    'status': '3',
-                    'type': '1',
-                    'data': f'{statistics}',
-                    'extend': 'main.backtest',
-                    'name': f'Buy: {plato.key()}, Sell: {plato.key()}',
-                    'total_month6': float(statistics['4']['totalAmount']),
-                    'total_month3': float(statistics['3']['totalAmount']),
-                    'total_month1': float(statistics['2']['totalAmount']),
-                    'total_week': float(statistics['1']['totalAmount']),
-                    'ts_start': tsFrom,
-                    'ts_end': tsTo
-                })
-        print(f'Saving {len(backtests)} backtests');
-
+                backtests.append(dict(
+                    buy_fast=penter.fast,
+                    buy_slow=penter.slow,
+                    buy_signal=penter.signal,
+                    buy_period=penter.period,
+                    sell_fast=pexit.fast,
+                    sell_slow=pexit.slow,
+                    sell_signal=pexit.signal,
+                    sell_period=pexit.period,
+                    status='3',
+                    type='1',
+                    data=f'{dumps(dict(statistics=statistics))}',
+                    extend='|main.backtest|',
+                    name=f'Buy: {penter.key(":")}, Sell: {pexit.key(":")}',
+                    total_month6=round(float(statistics['4']['profit']), 2),
+                    total_month3=round(float(statistics['3']['profit']), 2),
+                    total_month1=round(float(statistics['2']['profit']), 2),
+                    total_week=round(float(statistics['1']['profit']), 2),
+                    ts_start=self.tsFrom,
+                    ts_end=self.tsTo
+                ))
+        self.log(f'Saving {len(backtests)} backtests');
         ts = time()
-        #Backtest.saveMany(backtests)
-        print('Saved in %.4fs' % (time() - ts))
-        print(f'There are {generator.countItems()} items and {(self.tsTo - self.tsFrom)//(24*60*60)} days')
+        Backtest.saveMany(backtests)
+        self.log('Saved in %.4fs' % (time() - ts))
+        self.log(f'There are {generator.countItems()} items and {(self.tsTo - self.tsFrom)//(24*60*60)} days')
         return generator.countItems();
 
     @staticmethod
@@ -120,7 +121,7 @@ class GlobalBacktest:
         dfDeals['ts_exit'] = to_datetime(dfDeals['ts_exit'], unit='s', utc=True).dt.strftime('%Y-%m-%d %H:%M:%S')
 
         dateTo = self.tsTo
-        dateTo = datetime.today() # Temporary. To fit curent implementation
+        #dateTo = datetime.today() # Temporary. To fit curent implementation
 
         statistics = {}
 
@@ -129,8 +130,8 @@ class GlobalBacktest:
             stGroup = dfDeals[dfDeals.dealTs >= dateLimit]
             if stGroup.empty:
                 statistics[idx] = dict(
-                    feesAmount=0, totalAmount=0, winsAmount=0, lossesAmount=0,
-                    wins='0', losses='0', total='0', calcs=[]
+                    fees=0, profit=0, total=0, totalWins=0,
+                    totalLosses=0, wins='0', losses='0', trades='0', calcs=[]
                 )
                 continue
 
@@ -140,16 +141,21 @@ class GlobalBacktest:
             winsGroup = stGroup[stGroup.delta > 0]
             lossesGroup = stGroup[stGroup.delta <= 0]
 
-            statistics[idx] = {
-                'feesAmount': round(stGroup['fees'].sum(), 2),
-                'totalAmount': round(stGroup['delta'].sum(), 2),
-                'winsAmount': round(winsGroup['delta'].sum(), 2),
-                'lossesAmount': round(abs(lossesGroup['delta'].sum()), 2),
-                'wins': '%d' % winsGroup['delta'].count(),
-                'losses': '%d' % lossesGroup['delta'].count(),
-                'total': '%d' % stGroup['delta'].count(),
-                'calcs': []#stGroup.to_dict('index')
-            }
+            fees = round(stGroup['fees'].sum(), 2)
+            total = round(stGroup['delta'].sum(), 2)
+            wins = round(winsGroup['delta'].sum(), 2)
+
+            statistics[idx] = dict(
+                fees=fees,
+                profit=total - fees,
+                total=total,
+                totalWins=wins,
+                totalLosses=total - wins,
+                wins='%d' % winsGroup['delta'].count(),
+                losses='%d' % lossesGroup['delta'].count(),
+                trades='%d' % stGroup['delta'].count(),
+                calcs=stGroup.to_dict('index')
+            )
 
         return statistics
 
@@ -179,23 +185,25 @@ class GlobalBacktest:
 
 class Tester():
     @staticmethod
-    def calculate(plato, stockData: StockDataFrame, begin, end):
+    def calculate(penter: Plato, pexit: Plato, denter: StockDataFrame, dexit: StockDataFrame, begin, end):
         ts = time()
-        plato.calculateAll(stockData)
+        penter.calculateAll(denter)
+        pexit.calculateAll(dexit)
 
-        statistics = StatisticsCalc(end).calculate(plato);
+        statistics = StatisticsCalc(end).calculate(penter, pexit);
 
-        del plato.adviseData
-        del stockData
+        del penter.adviseData
+        del pexit.adviseData
+        del denter
+        del dexit
 
         isPositive = False
         for period in statistics:
-            if statistics[period]['totalAmount'] > 0:
+            if statistics[period]['total'] > 0:
                 isPositive = True
                 break
 
-        return (plato, begin, end, statistics if isPositive else None, time() - ts)
-
+        return (penter, pexit, begin, end, statistics if isPositive else None, time() - ts)
 
 class StatisticsCalc():
     FEE = 0.002
@@ -206,9 +214,14 @@ class StatisticsCalc():
         self.lot_size = lot_size
         self.till = till
 
-    def calculate(self, plato: Plato):
-        advises = plato.adviseData
-        advises = advises[advises.advise != Plato.ADVISE_NONE]
+    def calculate(self, penter: Plato, pexit: Plato):
+        adv_enter = penter.adviseData
+        adv_enter = adv_enter[adv_enter.advise == Plato.ADVISE_BUY][['close', 'minute_ts', 'advise']]
+
+        adv_exit = pexit.adviseData
+        adv_exit = adv_exit[adv_exit.advise == Plato.ADVISE_SELL][['close', 'minute_ts', 'advise']]
+
+        advises = adv_enter.combine_first(adv_exit)
         #advises = advises[:10]# DEBUG
 
         advises[['price_enter', 'ts_enter']] = advises[advises.advise == Plato.ADVISE_BUY][['close', 'minute_ts']]
@@ -245,8 +258,8 @@ class StatisticsCalc():
             stGroup = deals[deals.dealTs >= dateLimit]
             if stGroup.empty:
                 statistics[idx] = dict(
-                    feesAmount=0, totalAmount=0, winsAmount=0, lossesAmount=0,
-                    wins='0', losses='0', total='0', calcs=[]
+                    fees=0, profit=0, total=0, totalWins=0,
+                    totalLosses=0, wins='0', losses='0', trades='0', calcs=[]
                 )
                 continue
 
@@ -256,16 +269,21 @@ class StatisticsCalc():
             winsGroup = stGroup[stGroup.delta > 0]
             lossesGroup = stGroup[stGroup.delta <= 0]
 
-            statistics[idx] = {
-                'feesAmount': round(stGroup['fees'].sum(), 2),
-                'totalAmount': round(stGroup['delta'].sum(), 2),
-                'winsAmount': round(winsGroup['delta'].sum(), 2),
-                'lossesAmount': round(abs(lossesGroup['delta'].sum()), 2),
-                'wins': '%d' % winsGroup['delta'].count(),
-                'losses': '%d' % lossesGroup['delta'].count(),
-                'total': '%d' % stGroup['delta'].count(),
-                'calcs': []  # stGroup.to_dict('index')
-            }
+            fees = round(stGroup['fees'].sum(), 2)
+            total = round(stGroup['delta'].sum(), 2)
+            wins = round(winsGroup['delta'].sum(), 2)
+
+            statistics[idx] = dict(
+                fees=fees,
+                profit=total - fees,
+                total=total,
+                totalWins=wins,
+                totalLosses=total - wins,
+                wins='%d' % winsGroup['delta'].count(),
+                losses='%d' % lossesGroup['delta'].count(),
+                trades='%d' % stGroup['delta'].count(),
+                calcs=stGroup.to_dict('index')
+            )
 
         del deals
 
@@ -276,7 +294,7 @@ class Generator():
     FAST_PERIOD = range(2, 30)
     SLOW_PERIOD = range(10, 40)
     SIGNAL_PERIOD = range(2, 20)
-    INTERVALS = [15, 30, 60, 120, 240, 1440]
+    INTERVALS = [30, 60, 120, 240, 1440]
 
     def __init__(self, pair: str, rates: StockDataFrame, begin: int, end: int):
         self.pair = pair
@@ -288,8 +306,15 @@ class Generator():
         iterators = self.getIterators()
 
         def gen(data):
-            pair, fast, slow, signal, (period, rateData) = data
-            return (Plato(pair, fast, slow, signal, period), rateData, self.begin, self.end)
+            pair, fast, slow, signal, (bperiod, speriod), ratesData = data
+            return (
+                Plato(pair, fast, slow, signal, bperiod),
+                Plato(pair, fast, slow, signal, speriod),
+                ratesData[bperiod],
+                ratesData[speriod],
+                self.begin,
+                self.end
+            )
 
         for item in product(*iterators):
             yield gen(item)
@@ -298,4 +323,5 @@ class Generator():
         return reduce(mul, map(len, self.getIterators()), 1)
 
     def getIterators(self):
-        return [[self.pair], self.FAST_PERIOD, self.SLOW_PERIOD, self.SIGNAL_PERIOD, self.rates.items()]
+        periods = list(combinations_with_replacement(reversed(self.INTERVALS), 2))[:-1]
+        return [[self.pair], self.FAST_PERIOD, self.SLOW_PERIOD, self.SIGNAL_PERIOD, periods, [self.rates]]
