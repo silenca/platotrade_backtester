@@ -66,7 +66,8 @@ class Backtest(db.Model):
     @staticmethod
     def saveMany(backtests):
         for params in backtests:
-            db.session.add(Backtest(**params))
+            if params is not None:
+                db.session.add(Backtest(**params))
 
         db.session.commit()
 
