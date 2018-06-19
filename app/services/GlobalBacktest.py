@@ -1,3 +1,4 @@
+import pytz
 from pandas import DataFrame, Series, to_datetime
 from json import dumps
 
@@ -248,8 +249,7 @@ class StatisticsCalc():
         deals['ts_enter'] = to_datetime(deals['ts_enter'], unit='s', utc=True).dt.strftime('%Y-%m-%d %H:%M:%S')
         deals['ts_exit'] = to_datetime(deals['ts_exit'], unit='s', utc=True).dt.strftime('%Y-%m-%d %H:%M:%S')
 
-        #dateTo = self.tsTo
-        dateTo = datetime.today()  # Temporary. To fit curent implementation
+        dateTo = datetime.fromtimestamp(self.till, tz=pytz.UTC)
 
         statistics = {}
 
