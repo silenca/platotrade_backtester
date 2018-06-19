@@ -1,4 +1,6 @@
 from datetime import datetime
+from itertools import product
+from multiprocessing.pool import Pool
 from time import time
 
 import numpy as np
@@ -17,8 +19,10 @@ class RTBacktest():
     PERIOD_OFFSET = 33
     FRAME_SIZE = 40
 
-    def __init__(self, plato: Plato, rates: StockDataFrame, begin: int, end: int):
-        self.plato = plato
+    def __init__(self, plato_enter: Plato, plato_exit: Plato, rates: StockDataFrame, begin: int, end: int):
+        self.plato_enter = plato_enter
+        self.plato_exit = plato_exit
+
         self.rates = self.prepareRates(rates)
         self.begin = begin
         self.end = end
@@ -28,89 +32,62 @@ class RTBacktest():
         deal = None
         ts = time()
         i = 0
-        for sdf, curTs in self.ratesGenerator():
-            i += 1
-            advises = self.plato.calculateReal(sdf, 1)
 
-            curAdvise = dict(
-                ts=curTs,
-                price=advises.close.values[-1],
-                buy_s=not advises[advises.advise == Plato.ADVISE_BUY].empty,
-                sell_s=not advises[advises.advise == Plato.ADVISE_SELL].empty,
-                tmp=advises.advise.values
-            )
+        #deals = DataFrame(columns=['key', 'ts_enter', 'ts_exit', 'price_enter', 'price_exit', 'opened'])
+
+        for rawFrame in self.ratesGenerator():
+            i += 1
+            cur_ts = rawFrame.index.values[-1]
 
             if deal is None:
-                if curAdvise['buy_s']:
+                advises = Calculator.calculateRealtimeAdvise(rawFrame, self.plato_enter)
+                is_buy_advise = not advises[advises.advise == Plato.ADVISE_BUY].empty
+                if is_buy_advise:
+                    cur_ts = advises.index.values[-1]
                     deal = dict(
-                        ts_enter=curAdvise['ts'],
-                        price_enter=curAdvise['price']
+                        ts_enter=cur_ts,
+                        price_enter=advises.close.values[-1]
                     )
+                    #deals.append(DataFrame(deal, index=[len(deals)]), ignore_index=True)
             else:
-                if curAdvise['sell_s']:
-                    deal['ts_exit'] = curAdvise['ts'],
-                    deal['price_exit'] = curAdvise['price']
+                #deal_id = deals.index.values[-1]
+                advises = Calculator.calculateRealtimeAdvise(rawFrame, self.plato_exit)
+                is_sell_advise = not advises[advises.advise == Plato.ADVISE_SELL].empty
+                if is_sell_advise:
+                    cur_ts = advises.index.values[-1]
 
-                    deals = deals.append(DataFrame(deal), ignore_index=True)
+                    deal['ts_exit'] = cur_ts
+                    deal['price_exit'] = advises.close.values[-1]
+
+                    deals = deals.append(DataFrame(deal, index=[0]), ignore_index=True)
+                    #print(deal, deals);exit(0)
                     deal = None
 
         stats = StatisticsCalc(self.end).calculate(deals);
-        print(deals)
-        print(stats);
-        print(f'Calculated {i} frames in {round(time()-ts, 3)}s')
 
-        backtests = [dict(
-            buy_fast=self.plato.fast,
-            buy_slow=self.plato.slow,
-            buy_signal=self.plato.signal,
-            buy_period=self.plato.period,
-            sell_fast=self.plato.fast,
-            sell_slow=self.plato.slow,
-            sell_signal=self.plato.signal,
-            sell_period=self.plato.period,
-            status='3',
-            type='1',
-            data=f'{dumps(dict(statistics=stats))}',
-            extend='|main.backtest|',
-            name=f'Buy: {self.plato.key()}, Sell: {self.plato.key()}',
-            total_month6=float(stats['4']['profit']),
-            total_month3=float(stats['3']['profit']),
-            total_month1=float(stats['2']['profit']),
-            total_week=float(stats['1']['profit']),
-            ts_start=self.begin,
-            ts_end=self.end
-        )]
+        isPositive = False
+        for period in stats:
+            if stats[period]['total'] > 0:
+                isPositive = True
+                break
 
-        Backtest.saveMany(backtests)
-
-        return []
+        if isPositive:
+            return stats
+        else:
+            return None
 
     def ratesGenerator(self):
-        max = len(self.rates)
-        max -= self.FRAME_SIZE*self.plato.period
-        for begin in range(max):
-            end = begin + self.FRAME_SIZE*self.plato.period
-            yield self.calculateRealtimeFrame(self.rates[begin:end])
+        frameLength = self.FRAME_SIZE*max(self.plato_enter.period, self.plato_enter.period)
+        till = len(self.rates) - frameLength
+        for begin in range(till):
+            end = begin + frameLength
+            yield self.rates[begin:end]
 
-    def calculateRealtimeFrame(self, rawFrame: StockDataFrame):
-        periodFrame = rawFrame[rawFrame.index%self.getPeriodSec() == 0][-self.FRAME_SIZE-1:]
+    def calculateRealtimeFrame(self, rawFrame: StockDataFrame, plato: Plato):
+        return Calculator.calculateRealtimeFrame(rawFrame, plato)
 
-        lastIdx = np.max(periodFrame.index.values)
-        nextIdx = lastIdx + self.getPeriodSec()
-
-        frame = rawFrame[(rawFrame.index > lastIdx) & (rawFrame.index < nextIdx)]
-
-        if not frame.empty:
-            frame = frame[-1:]
-            frame.index = [nextIdx]
-            periodFrame = periodFrame.append(frame, verify_integrity=True)
-
-        curTs = rawFrame.index.values[-1]
-
-        del frame
-        del rawFrame
-
-        return (periodFrame, curTs)
+    def calculateRealtimeAdvise(self, rawFrame: StockDataFrame, plato: Plato):
+        return Calculator.calculateRealtimeAdvise(rawFrame, plato)
 
     def prepareRates(self, rates: StockDataFrame):
         for key in rates.columns.values:
@@ -126,8 +103,84 @@ class RTBacktest():
 
         return rates[['close']]
 
-    def getPeriodSec(self):
-        return 60*self.plato.period
+    def getPeriodSec(self, plato: Plato):
+        return Calculator.getPeriodSec(plato)
+
+class Calculator():
+    FRAME_SIZE = 40
+
+    @staticmethod
+    def getPeriodSec(plato: Plato):
+        return plato.period * 60
+
+    @staticmethod
+    def calculateRealtimeFrame(rawFrame: StockDataFrame, plato: Plato):
+        periodFrame = rawFrame[rawFrame.index%Calculator.getPeriodSec(plato) == 0][-Calculator.FRAME_SIZE-1:]
+
+        lastIdx = periodFrame.index.values[-1]
+        nextIdx = lastIdx + Calculator.getPeriodSec(plato)
+
+        frame = rawFrame[(rawFrame.index > lastIdx) & (rawFrame.index < nextIdx)]
+
+        if not frame.empty:
+            frame = frame[-1:]
+            frame.index = [nextIdx]
+            periodFrame = periodFrame.append(frame, verify_integrity=True)
+
+        del frame
+        del rawFrame
+
+        return periodFrame
+
+    @staticmethod
+    def calculateRealtimeAdvise(rawFrame: StockDataFrame, plato: Plato):
+        return plato.calculateReal(Calculator.calculateRealtimeFrame(rawFrame, plato), 1)
+
+
+def itemsGenerator(rates: StockDataFrame, deals: DataFrame, pair: str='btc_usd'):
+    for f1, s1, si1, p1, f2, s2, si2, p2 in product([12], [26], [9], [60], [12], [26], [9], [60]):
+        pl1 = Plato(pair, f1, s1, si1, p1)
+        pl2 = Plato(pair, f2, s2, si2, p2)
+
+        key = '__'.join([pl1.key(), pl2.key()])
+
+        yield (rates, pl1, pl2, deals[deals.key == key])
+
+def processor(rates: StockDataFrame, enter_plato: Plato, exit_plato: Plato, deals: DataFrame):
+    key = '__'.join([enter_plato.key(), exit_plato.key()])
+
+    hasDeal = not deals[-1:][deals.opened == True].empty
+
+    if not hasDeal:
+        advises = Calculator.calculateRealtimeAdvise(rates, enter_plato)
+        is_buy_advise = not advises[advises.advise == Plato.ADVISE_BUY].empty
+        if is_buy_advise:
+            cur_ts = advises.index.values[-1]
+            deal = dict(
+                key=key,
+                ts_enter=cur_ts,
+                price_enter=advises.close.values[-1],
+                ts_exit=0,
+                price_exit=0,
+                opened=True
+            )
+            deals.append(DataFrame(deal, index=[len(deals)]), ignore_index=True)
+    else:
+        deal_id = deals.index.values[-1]
+        advises = Calculator.calculateRealtimeAdvise(rates, exit_plato)
+        is_sell_advise = not advises[advises.advise == Plato.ADVISE_SELL].empty
+        if is_sell_advise:
+            cur_ts = advises.index.values[-1]
+
+            deals.loc[deal_id, 'ts_exit'] = cur_ts
+            deals.loc[deal_id, 'price_exit'] = advises.close.values[-1]
+            deals.loc[deal_id, 'opened'] = False
+
+    del rates
+    del enter_plato
+    del exit_plato
+
+    return deals
 
 class StatisticsCalc():
 
@@ -156,8 +209,8 @@ class StatisticsCalc():
             stGroup = deals[deals.ts >= dateLimit]
             if stGroup.empty:
                 statistics[idx] = dict(
-                    feesAmount=0, totalAmount=0, winsAmount=0, lossesAmount=0,
-                    wins='0', losses='0', total='0', calcs=[]
+                    fees=0, profit=0, total=0, totalWins=0,
+                    totalLosses=0, wins='0', losses='0', trades='0', calcs=[]
                 )
                 continue
 
