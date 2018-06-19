@@ -56,23 +56,19 @@ class Gen():
 
 class GenCustom():
 
-    PARAMS = [
-        '18:30:18:1440:240',
-        '7:10:2:1440:1440',
-    ]
-
-    def __init__(self, pair: str, rates: StockDataFrame, begin: int, end: int):
+    def __init__(self, pair: str, rates: StockDataFrame, begin: int, end: int, params):
         self.pair = pair
         self.begin = begin
         self.end = end
         self.rates = rates
+        self.params = params
 
     def getItems(self):
-        for str_item in self.PARAMS:
-            f, s, si, p1, p2 = list(map(int, str_item.split(':')))
+        for str_item in self.params:
+            f1, s1, si1, p1, f2, s2, si2, p2 = list(map(int, str_item.split(':')))
             yield (
-                Plato(self.pair, f, s, si, p1),
-                Plato(self.pair, f, s, si, p2),
+                Plato(self.pair, f1, s1, si1, p1),
+                Plato(self.pair, f2, s2, si2, p2),
                 self.rates,
                 self.begin,
                 self.end
@@ -113,8 +109,14 @@ if __name__ == '__main__':
     parser.add_argument('--pair', choices=['btc_usd'], help='Pair to test', default='btc_usd')
     parser.add_argument('--goback', choices=INTERVALS.keys(), help='How many days to check', default='month6')
     parser.add_argument('-till', help='Reference timestamp to stop')
+    parser.add_argument('--data', help='Combinations f1:s1:si1:p1:f2:s2:si2:p2,...')
 
     args = parser.parse_args()
+
+    if args.data is None:
+        print('No data. Exit')
+        exit(0)
+    params = args.data.split(',')
 
     end = int(time())
     if args.till is not None:
@@ -129,7 +131,7 @@ if __name__ == '__main__':
     rates = RateLoader().fetchPeriods(args.pair, begin_with_offset, end, [1]).getSdf(args.pair, 1)
     print(f'Rates loaded (~{len(rates)}) in {round(time()-ts, 3)}s')
 
-    generator = GenCustom('btc_usd', rates, begin, end);
+    generator = GenCustom('btc_usd', rates, begin, end, params);
 
     backtests = []
     ts = time()
