@@ -17,6 +17,7 @@ class Plato():
         self.period = int(period)
         self.advises = {}
         self.adviseData = None
+        self.ticks = max(self.fast, self.slow, self.signal)+1
 
     def __repr__(self):
         return self.json()
@@ -59,9 +60,6 @@ class Plato():
         stockData['prevPos'] = np.where(stockData.macdh.shift(1) > 0, 1, 0)
         stockData['advise'] = np.where(stockData.pos - stockData.prevPos < 0, self.ADVISE_SELL,
                                np.where(stockData.pos - stockData.prevPos > 0, self.ADVISE_BUY, self.ADVISE_NONE))
-        #idx = stockData.index.values[-1]
-        #if idx <= 1529042400 and idx >= 1529038800:
-        #    print(stockData.index.values[-1], stockData[-3:])
 
         del stockData['pos']
         del stockData['prevPos']
@@ -72,3 +70,4 @@ class Plato():
         self.adviseData = stockData[['minute_ts', 'close', 'advise']]
         if save:
             self.advises = stockData[['minute_ts', 'close', 'advise']].to_dict('index')
+        del stockData

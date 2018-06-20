@@ -6,16 +6,17 @@ from multiprocessing.pool import Pool
 from time import time
 
 import pytz
-from pandas import DataFrame
+from pandas import DataFrame, to_datetime
 from stockstats import StockDataFrame
 
 from app.models.backtest import Backtest
 from app.models.plato import Plato
-from app.services.RTBacktest import RTBacktest
+from app.services.RTBacktest import RTBacktest, Calculator
 from app.services.RateLoader import RateLoader
 
 import datetime
 
+DEFAULT_PAIR = 'btc_usd'
 DAY = 24*60*60
 INTERVALS = {'day': DAY, 'week': 7*DAY, 'month': 30*DAY, 'month3': 90*DAY, 'month6': 180*DAY}
 
@@ -102,7 +103,34 @@ def calculate(penter: Plato, pexit: Plato, rates: StockDataFrame, begin: int, en
     else:
         return None
 
+
+def test():
+    end = int(time()) - DAY
+    begin = end - 3*DAY
+
+    rates = RateLoader().fetchPeriods(DEFAULT_PAIR, begin, end, [1]).getSdf(DEFAULT_PAIR, 1)
+    rates = RTBacktest.prepareRates(rates)
+
+    penter = Plato(DEFAULT_PAIR, 12, 26, 9, 60)
+    pexit = Plato(DEFAULT_PAIR, 12, 26, 9, 60)
+
+    def add_d(rates: StockDataFrame):
+        rates['d'] = to_datetime(rates.index, unit='s', utc=True)
+        rates.d = rates.d.dt.strftime('%Y-%m-%d %H:%M:%S')
+        return rates
+
+    def gen():
+        maxp = max(penter.period, pexit.period)
+        for i in range(len(rates) - 40 * maxp):
+            yield rates[i:i + 40 * maxp]
+
+    ts = time()
+    deals = RTBacktest.calculateDeals(gen(), penter, pexit)
+    print(deals)
+    print(f'Total: {round(time()-ts, 3)}')
+
 if __name__ == '__main__':
+    #test();exit(0)
     tts = time()
     parser = argparse.ArgumentParser(description='RealTime backtest for plato')
 
@@ -135,10 +163,14 @@ if __name__ == '__main__':
 
     backtests = []
     ts = time()
-    pool = Pool(processes=4, maxtasksperchild=10)
+
+    pool = Pool(processes=8, maxtasksperchild=10)
     backtests = pool.starmap(calculate, generator.getItems())
     pool.close()
     pool.join()
+
+    #for item in generator.getItems():
+    #    backtests.append(calculate(*item))
 
     print(f'Pool calculation takes {round(time()-ts, 3)}s (~{len(list(generator.getItems()))} items)')
     print(f'Saving {len(set(backtests))} backtests')
