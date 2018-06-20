@@ -35,6 +35,7 @@ class GlobalBacktest:
         self.log(f'All data loaded in {time() - ts}s')
 
     def log(self, msg):
+        print(msg)
         self.logger.info(msg)
 
     def run(self):
@@ -44,9 +45,12 @@ class GlobalBacktest:
 
         pool = Pool(processes=4, maxtasksperchild=10)
         positiveCalculations = pool.starmap(Tester.calculate, generator.getItems())
-        #positiveCalculations = deque(self.smap(Tester.calculate, generator.getItems()))
         pool.close()
         pool.join()
+        #positiveCalculations = []
+        #for i in generator.getItems():
+        #    positiveCalculations.append(Tester.calculate(*i))
+
         self.log('Pool calculation is done in '+'%.3fs'%(time()-ts))
 
         backtests = []
@@ -82,104 +86,6 @@ class GlobalBacktest:
         self.log(f'There are {generator.countItems()} items and {(self.tsTo - self.tsFrom)//(24*60*60)} days')
         return generator.countItems();
 
-    @staticmethod
-    def calculate(plato, stockData: StockDataFrame, begin, end):
-        ts = time()
-        plato.calculateAll(stockData)
-
-        statistics = StatisticsCalc(end).calculate(plato);
-
-        isPositive = False
-        for period in statistics:
-            if statistics[period]['totalAmount'] > 0:
-                isPositive = True
-                break
-
-        return (plato, begin, end, statistics if isPositive else None, time()-ts)
-
-    def calculateDealStatistics(self, plato:Plato):
-        dfDeals = DataFrame(columns=['price_enter', 'price_exit', 'ts_enter', 'ts_exit', 'dealTs'])
-
-        buy = None
-        for date, advise in plato.adviseData.iterrows():
-            if buy is None:
-                if advise['advise'] == Plato.ADVISE_BUY:
-                    buy = advise
-            elif advise['advise'] == Plato.ADVISE_SELL:
-                dfDeals.loc[date] = Series({
-                    'price_enter': float(buy['close']),
-                    'price_exit': float(advise['close']),
-                    'ts_enter': int(buy['minute_ts']),
-                    'ts_exit': int(advise['minute_ts']),
-                    'dealTs': int(advise['minute_ts'])
-                })
-                buy = None
-
-        dfDeals['fees'] = (dfDeals['price_enter'] + dfDeals['price_exit'])*self.FEE
-        dfDeals['delta'] = dfDeals['price_exit'] - dfDeals['price_enter']
-
-        dfDeals['ts_enter'] = to_datetime(dfDeals['ts_enter'], unit='s', utc=True).dt.strftime('%Y-%m-%d %H:%M:%S')
-        dfDeals['ts_exit'] = to_datetime(dfDeals['ts_exit'], unit='s', utc=True).dt.strftime('%Y-%m-%d %H:%M:%S')
-
-        dateTo = self.tsTo
-        #dateTo = datetime.today() # Temporary. To fit curent implementation
-
-        statistics = {}
-
-        for idx, period in self.STATISTICS_PERIODS.items():
-            dateLimit = (dateTo + relativedelta(**period)).timestamp()
-            stGroup = dfDeals[dfDeals.dealTs >= dateLimit]
-            if stGroup.empty:
-                statistics[idx] = dict(
-                    fees=0, profit=0, total=0, totalWins=0,
-                    totalLosses=0, wins='0', losses='0', trades='0', calcs=[]
-                )
-                continue
-
-            stGroup.insert(0, 'interval', str(idx))
-            stGroup.insert(0, 'amount', self.lot_size)
-
-            winsGroup = stGroup[stGroup.delta > 0]
-            lossesGroup = stGroup[stGroup.delta <= 0]
-
-            fees = round(stGroup['fees'].sum(), 2)
-            total = round(stGroup['delta'].sum(), 2)
-            wins = round(winsGroup['delta'].sum(), 2)
-
-            statistics[idx] = dict(
-                fees=fees,
-                profit=total - fees,
-                total=total,
-                totalWins=wins,
-                totalLosses=total - wins,
-                wins='%d' % winsGroup['delta'].count(),
-                losses='%d' % lossesGroup['delta'].count(),
-                trades='%d' % stGroup['delta'].count(),
-                calcs=stGroup.to_dict('index')
-            )
-
-        return statistics
-
-    def getItems(self, pair):
-        begin = self.tsFrom
-        end = self.tsTo
-        iterators = self.getIterators(pair)
-        items = product(*iterators)
-
-        def gen(data):
-            pair, fast, slow, signal, (period, rateData) = data
-            return (Plato(pair, fast, slow, signal, period), rateData, begin, end)
-
-        for item in items:
-            yield gen(item)
-
-    def countItems(self, pair):
-        return reduce(mul, map(len, self.getIterators(pair)), 1);
-
-    def getIterators(self, pair):
-        sdfs = self.rateData.getPairSdf(pair)
-        return [[pair], self.FAST_PERIOD, self.SLOW_PERIOD, self.SIGNAL_PERIOD, sdfs.items()]
-
     def smap(self, func, items):
         for item in items:
             return func(*item)
@@ -191,7 +97,7 @@ class Tester():
         penter.calculateAll(denter)
         pexit.calculateAll(dexit)
 
-        statistics = StatisticsCalc(end).calculate(penter, pexit);
+        statistics = StatisticsCalc(begin, end).calculate(penter, pexit);
 
         del penter.adviseData
         del pexit.adviseData
@@ -211,9 +117,10 @@ class StatisticsCalc():
 
     STATISTICS_PERIODS = {'1': {'days': -7}, '2': {'months': -1}, '3': {'months': -3}, '4': {'months': -6}}
 
-    def __init__(self, till: int, lot_size: float=1.0):
+    def __init__(self, begin: int, till: int, lot_size: float=1.0):
         self.lot_size = lot_size
         self.till = till
+        self.begin = begin
 
     def calculate(self, penter: Plato, pexit: Plato):
         adv_enter = penter.adviseData
@@ -222,9 +129,11 @@ class StatisticsCalc():
         adv_exit = pexit.adviseData
         adv_exit = adv_exit[adv_exit.advise == Plato.ADVISE_SELL][['close', 'minute_ts', 'advise']]
 
-        advises = adv_enter.combine_first(adv_exit)
-        #advises = advises[:10]# DEBUG
+        adv_comb = adv_enter.combine_first(adv_exit)
+        adv_comb.minute_ts = adv_comb.minute_ts.astype(int)
+        advises = adv_comb[adv_comb.minute_ts >= self.begin]
 
+        #advises = advises[:10]# DEBUG
         advises[['price_enter', 'ts_enter']] = advises[advises.advise == Plato.ADVISE_BUY][['close', 'minute_ts']]
         advises[['price_exit', 'ts_exit']] = advises[advises.advise == Plato.ADVISE_SELL][['close', 'minute_ts']]
         advises['ts_exit'] = advises['ts_exit'].shift(-1)
@@ -248,6 +157,7 @@ class StatisticsCalc():
         deals['delta'] = deals['price_exit'].values - deals['price_enter'].values
         deals['ts_enter'] = to_datetime(deals['ts_enter'], unit='s', utc=True).dt.strftime('%Y-%m-%d %H:%M:%S')
         deals['ts_exit'] = to_datetime(deals['ts_exit'], unit='s', utc=True).dt.strftime('%Y-%m-%d %H:%M:%S')
+        #print(penter.key(), pexit.key(), deals[['ts_enter', 'ts_exit']])
 
         dateTo = datetime.fromtimestamp(self.till, tz=pytz.UTC)
 
@@ -317,11 +227,15 @@ class Generator():
             )
 
         for item in product(*iterators):
+            _, fast, slow, _, (bperiod, speriod), _ = item
+            #if fast >= slow:
+            #    continue
+            if bperiod < 60 or bperiod < speriod:
+                continue
             yield gen(item)
 
     def countItems(self):
-        return reduce(mul, map(len, self.getIterators()), 1)
+        return reduce(mul, map(lambda x:len(list(x)), self.getIterators()), 1)
 
     def getIterators(self):
-        periods = list(combinations_with_replacement(reversed(self.INTERVALS), 2))[:-1]
-        return [[self.pair], self.FAST_PERIOD, self.SLOW_PERIOD, self.SIGNAL_PERIOD, periods, [self.rates]]
+        return [[self.pair], self.FAST_PERIOD, self.SLOW_PERIOD, self.SIGNAL_PERIOD, product(self.INTERVALS, self.INTERVALS), [self.rates.copy()]]

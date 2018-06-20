@@ -1,6 +1,9 @@
 from app.models.RateData import RateData
 import requests
 
+from app.models.plato import Plato
+
+
 class RateLoader:
     LAST_URL = 'http://platotradeinfo.silencatech.com/main/dashboard/ajaxgetetradedata'
     PERIOD_URL = 'http://platotradeinfo.silencatech.com/main/dashboard/ajaxgetetradedataforperiod'
@@ -52,7 +55,8 @@ class RateLoader:
         data = RateData()
 
         for period in periods:
-            rates = self.__fetchByPairTsAndPeriod(pair, tsFrom, tsTo, period)
+            offset = Plato.SKIP_COUNT*period*60
+            rates = self.__fetchByPairTsAndPeriod(pair, tsFrom-offset, tsTo, period)
 
             data.load(pair, period, rates)
 
