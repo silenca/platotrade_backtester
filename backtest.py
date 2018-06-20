@@ -28,7 +28,6 @@ if __name__ == '__main__':
     DEBUG = True
     end = int(time())
     begin = end - 180*DAY
-    begin -= 34*1440*60# start offset
 
     ts = time()
     run(PAIR_LIST[0], begin, end)

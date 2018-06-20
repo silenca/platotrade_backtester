@@ -131,7 +131,7 @@ class StatisticsCalc():
 
         adv_comb = adv_enter.combine_first(adv_exit)
         adv_comb.minute_ts = adv_comb.minute_ts.astype(int)
-        advises = adv_comb[adv_comb.minute_ts >= self.begin]
+        advises = adv_comb[adv_comb.minute_ts >= self.begin].copy()
 
         #advises = advises[:10]# DEBUG
         advises[['price_enter', 'ts_enter']] = advises[advises.advise == Plato.ADVISE_BUY][['close', 'minute_ts']]
@@ -157,7 +157,6 @@ class StatisticsCalc():
         deals['delta'] = deals['price_exit'].values - deals['price_enter'].values
         deals['ts_enter'] = to_datetime(deals['ts_enter'], unit='s', utc=True).dt.strftime('%Y-%m-%d %H:%M:%S')
         deals['ts_exit'] = to_datetime(deals['ts_exit'], unit='s', utc=True).dt.strftime('%Y-%m-%d %H:%M:%S')
-        #print(penter.key(), pexit.key(), deals[['ts_enter', 'ts_exit']])
 
         dateTo = datetime.fromtimestamp(self.till, tz=pytz.UTC)
 
@@ -199,6 +198,14 @@ class StatisticsCalc():
 
         return statistics
 
+def export(df: DataFrame, name: str, columns: list):
+    df.to_csv(
+        path_or_buf=f'res/{name}.csv',
+        sep=';',
+        decimal=',',
+        float_format='%.2f',
+        columns=columns)
+
 class Generator():
 
     FAST_PERIOD = range(2, 30)
@@ -215,19 +222,21 @@ class Generator():
     def getItems(self):
         iterators = self.getIterators()
 
+        rates = self.rates
+
         def gen(data):
-            pair, fast, slow, signal, (bperiod, speriod), ratesData = data
+            fast, slow, signal, (bperiod, speriod) = data
             return (
-                Plato(pair, fast, slow, signal, bperiod),
-                Plato(pair, fast, slow, signal, speriod),
-                ratesData[bperiod],
-                ratesData[speriod],
+                Plato(self.pair, fast, slow, signal, bperiod),
+                Plato(self.pair, fast, slow, signal, speriod),
+                rates[bperiod].copy(),
+                rates[speriod].copy(),
                 self.begin,
                 self.end
             )
 
         for item in product(*iterators):
-            _, fast, slow, _, (bperiod, speriod), _ = item
+            fast, slow, _, (bperiod, speriod) = item
             #if fast >= slow:
             #    continue
             if bperiod < 60 or bperiod < speriod:
@@ -238,4 +247,4 @@ class Generator():
         return reduce(mul, map(lambda x:len(list(x)), self.getIterators()), 1)
 
     def getIterators(self):
-        return [[self.pair], self.FAST_PERIOD, self.SLOW_PERIOD, self.SIGNAL_PERIOD, product(self.INTERVALS, self.INTERVALS), [self.rates.copy()]]
+        return [self.FAST_PERIOD, self.SLOW_PERIOD, self.SIGNAL_PERIOD, product(self.INTERVALS, self.INTERVALS)]
