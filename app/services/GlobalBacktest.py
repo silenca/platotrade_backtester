@@ -1,12 +1,12 @@
 import pytz
-from pandas import DataFrame, Series, to_datetime
+from pandas import DataFrame, to_datetime
 from json import dumps
 
 from stockstats import StockDataFrame
 
 from app.services.RateLoader import RateLoader
 from app.models.plato import Plato
-from itertools import product, combinations_with_replacement
+from itertools import product
 from time import time
 from datetime import datetime
 from multiprocessing import Pool
@@ -16,6 +16,8 @@ from dateutil.relativedelta import relativedelta
 from app.models.backtest import Backtest
 
 import logging
+
+from config import FileConfig
 
 class GlobalBacktest:
     STATISTICS_PERIODS = {'1': {'days': -7}, '2': {'months': -1}, '3': {'months': -3}, '4': {'months': -6}}
@@ -43,7 +45,12 @@ class GlobalBacktest:
 
         generator = Generator(self.pair, self.rateData, self.tsFrom, self.tsTo)
 
-        pool = Pool(processes=4, maxtasksperchild=10)
+        poolConfig = dict(
+            processes=FileConfig().get('APP.POOL_PROCESSES', 4, int),
+            maxtasksperchild=FileConfig().get('APP.POOL_TASK_PER_CHILD', 10, int)
+        )
+
+        pool = Pool(**poolConfig)
         positiveCalculations = pool.starmap(Tester.calculate, generator.getItems())
         pool.close()
         pool.join()
@@ -77,7 +84,8 @@ class GlobalBacktest:
                     total_month1=round(float(statistics['2']['profit']), 2),
                     total_week=round(float(statistics['1']['profit']), 2),
                     ts_start=self.tsFrom,
-                    ts_end=self.tsTo
+                    ts_end=self.tsTo,
+                    is_rt=0
                 ))
         self.log(f'Saving {len(backtests)} backtests');
         ts = time()
@@ -94,8 +102,8 @@ class Tester():
     @staticmethod
     def calculate(penter: Plato, pexit: Plato, denter: StockDataFrame, dexit: StockDataFrame, begin, end):
         ts = time()
-        penter.calculateAll(denter)
-        pexit.calculateAll(dexit)
+        penter.calculateAll(denter.copy(deep=True))
+        pexit.calculateAll(dexit.copy(deep=True))
 
         statistics = StatisticsCalc(begin, end).calculate(penter, pexit);
 
@@ -104,11 +112,14 @@ class Tester():
         del denter
         del dexit
 
-        isPositive = False
-        for period in statistics:
-            if statistics[period]['total'] > 0:
-                isPositive = True
-                break
+        if FileConfig().get('CALC.SKIP_NEGATIVE', True, bool):
+            isPositive = False
+            for period in statistics:
+                if statistics[period]['total'] > 0:
+                    isPositive = True
+                    break
+        else:
+            isPositive = True
 
         return (penter, pexit, begin, end, statistics if isPositive else None, time() - ts)
 
@@ -229,16 +240,16 @@ class Generator():
             return (
                 Plato(self.pair, fast, slow, signal, bperiod),
                 Plato(self.pair, fast, slow, signal, speriod),
-                rates[bperiod].copy(),
-                rates[speriod].copy(),
+                rates[bperiod],
+                rates[speriod],
                 self.begin,
                 self.end
             )
 
         for item in product(*iterators):
             fast, slow, _, (bperiod, speriod) = item
-            #if fast >= slow:
-            #    continue
+            if fast >= slow:
+                continue
             if bperiod < 60 or bperiod < speriod:
                 continue
             yield gen(item)
