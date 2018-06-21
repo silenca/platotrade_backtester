@@ -1,5 +1,4 @@
 from datetime import datetime
-from itertools import product
 from time import time
 
 import pytz
@@ -28,11 +27,11 @@ class RTBacktest():
         ts = time()
         i = 0
 
-        deals = RTBacktest.calculateDeals(self.ratesGenerator(), self.plato_enter, self.plato_exit)
+        deals = RTBacktest.calculateDeals(self.ratesGenerator(), self.plato_enter, self.plato_exit, self.begin)
 
         stats = StatisticsCalc(self.end).calculate(deals);
 
-        isPositive = False
+        isPositive = True#False
         for period in stats:
             if stats[period]['total'] > 0:
                 isPositive = True
@@ -44,15 +43,18 @@ class RTBacktest():
             return None
 
     @staticmethod
-    def calculateDeals(generator, penter: Plato, pexit: Plato):
+    def calculateDeals(generator, penter: Plato, pexit: Plato, begin: int):
         deals = DataFrame(columns=['ts_enter', 'ts_exit', 'price_enter', 'price_exit'])
         deal = None
         ts = time()
         i = 0
 
         for rawFrame in generator:
-            i += 1
             cur_ts = rawFrame.index.values[-1]
+            if cur_ts < begin:
+                del rawFrame
+                continue
+            i += 1
 
             if deal is None:
                 advises = Calculator.calculateRealtimeAdvise(rawFrame, penter)
@@ -71,6 +73,9 @@ class RTBacktest():
 
                     deals = deals.append(DataFrame(deal, index=[0]), ignore_index=True)
                     deal = None
+        if i == 0:
+            i = 1
+            print('NO DEALS')
         print(f'Iterations: {i}, Takes: {round(time()-ts, 3)}, Avg: {round((time()-ts)/i, 3)}')
         return deals
 
@@ -135,7 +140,7 @@ class Calculator():
 
     @staticmethod
     def calculateRealtimeAdvise(rawFrame: StockDataFrame, plato: Plato):
-        return plato.calculateReal(Calculator.calculateRealtimeFrame(rawFrame, plato), 3)
+        return plato.calculateReal(Calculator.calculateRealtimeFrame(rawFrame, plato), 1)
 
 class StatisticsCalc():
 

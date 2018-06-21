@@ -98,7 +98,8 @@ def calculate(penter: Plato, pexit: Plato, rates: StockDataFrame, begin: int, en
             total_month1=float(stats['2']['profit']),
             total_week=float(stats['1']['profit']),
             ts_start=begin,
-            ts_end=end
+            ts_end=end,
+            is_rt=1
         )
     else:
         return None
@@ -151,7 +152,7 @@ if __name__ == '__main__':
         end = int(args.till)
 
     begin = end - INTERVALS[args.goback]
-    begin_with_offset = begin - max(*Gen.INTERVALS)*60*33
+    begin_with_offset = begin - 1440*60*33
 
     print(f'Start RT backtest')
     print(f'Period: {tsToTime(begin)} -> {tsToTime(end)}')
@@ -173,7 +174,7 @@ if __name__ == '__main__':
     #    backtests.append(calculate(*item))
 
     print(f'Pool calculation takes {round(time()-ts, 3)}s (~{len(list(generator.getItems()))} items)')
-    print(f'Saving {len(set(backtests))} backtests')
+    print(f'Saving backtests')
     ts = time()
     Backtest.saveMany(backtests)
     print(f'Saving takes ~{round(time()-ts, 3)}s')
