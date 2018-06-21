@@ -144,19 +144,23 @@ class StatisticsCalc():
         adv_comb.minute_ts = adv_comb.minute_ts.astype(int)
         advises = adv_comb[adv_comb.minute_ts >= self.begin].copy()
 
-        #advises = advises[:10]# DEBUG
-        advises[['price_enter', 'ts_enter']] = advises[advises.advise == Plato.ADVISE_BUY][['close', 'minute_ts']]
-        advises[['price_exit', 'ts_exit']] = advises[advises.advise == Plato.ADVISE_SELL][['close', 'minute_ts']]
-        advises['ts_exit'] = advises['ts_exit'].shift(-1)
-        advises['price_exit'] = advises['price_exit'].shift(-1)
-
-        if not advises.empty:
-            if advises.iat[0, 2] == Plato.ADVISE_SELL:
-                deals = DataFrame(advises[1:].dropna())
+        deals = DataFrame(columns=['price_enter', 'ts_enter', 'price_exit', 'ts_exit'])
+        deal = None
+        for adv in advises.itertuples():
+            if deal is None:
+                if adv.advise == Plato.ADVISE_BUY:
+                    deal = dict(
+                        ts_enter=adv.minute_ts,
+                        price_enter=adv.close
+                    )
             else:
-                deals = DataFrame(advises.dropna())
-        else:
-            deals = DataFrame(advises.dropna())
+                if adv.advise == Plato.ADVISE_SELL:
+                    deal['price_exit'] = adv.close
+                    deal['ts_exit'] = adv.minute_ts
+
+                    deals = deals.append(DataFrame(deal, index=[adv.minute_ts]), ignore_index=True)
+                    deal = None
+        del advises
 
         deals.price_enter = deals.price_enter.astype(float)
         deals.price_exit = deals.price_exit.astype(float)
