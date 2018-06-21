@@ -32,6 +32,7 @@ class Backtest(db.Model):
     total_week = db.Column(db.Float)
 
     type = db.Column(db.Integer)
+    is_rt = db.Column(db.Integer)
 
     @staticmethod
     def new_backtest(macd_params_buy,
