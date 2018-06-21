@@ -144,6 +144,10 @@ class StatisticsCalc():
         adv_comb.minute_ts = adv_comb.minute_ts.astype(int)
         advises = adv_comb[adv_comb.minute_ts >= self.begin].copy()
 
+        del adv_enter
+        del adv_exit
+        del adv_comb
+
         deals = DataFrame(columns=['price_enter', 'ts_enter', 'price_exit', 'ts_exit'])
         deal = None
         for adv in advises.itertuples():
