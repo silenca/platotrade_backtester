@@ -68,7 +68,28 @@ class Backtest(db.Model):
     def saveMany(backtests):
         for params in backtests:
             if params is not None:
-                db.session.add(Backtest(**params))
+                filters = [
+                    Backtest.buy_fast == params['buy_fast'],
+                    Backtest.buy_slow == params['buy_slow'],
+                    Backtest.buy_signal == params['buy_signal'],
+                    Backtest.buy_period == params['buy_period'],
+                    Backtest.sell_fast == params['sell_fast'],
+                    Backtest.sell_slow == params['sell_slow'],
+                    Backtest.sell_signal == params['sell_signal'],
+                    Backtest.sell_period == params['sell_period'],
+                    Backtest.is_rt == params['is_rt'],
+                ]
+                existing = db.session.query(Backtest).filter(*filters).first()
+                if existing is None: # Create new entity
+                    db.session.add(Backtest(**params))
+                else: # Updating existing
+                    existing.data = params['data']
+                    existing.total_month6 = params['total_month6']
+                    existing.total_month3 = params['total_month3']
+                    existing.total_month1 = params['total_month1']
+                    existing.total_week = params['total_week']
+                    existing.ts_start = params['ts_start']
+                    existing.ts_end = params['ts_end']
 
         db.session.commit()
 
