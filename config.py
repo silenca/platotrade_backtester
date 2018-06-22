@@ -27,7 +27,7 @@ class FileConfig():
 
     def __init__(self):
         self.config = configparser.ConfigParser()
-        with open('config.json', 'r') as f:
+        with open(os.path.join(basedir, 'config.json'), 'r') as f:
             self.config = json.load(f)
 
     def get(self, key, default=None, parser=None):
