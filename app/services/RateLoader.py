@@ -2,11 +2,13 @@ from app.models.RateData import RateData
 import requests
 
 from app.models.plato import Plato
-
+from math import floor
 
 class RateLoader:
     LAST_URL = 'http://platotradeinfo.silencatech.com/main/dashboard/ajaxgetetradedata'
     PERIOD_URL = 'http://platotradeinfo.silencatech.com/main/dashboard/ajaxgetetradedataforperiod'
+
+    PAGE_LENGTH = 100000
 
     def fetchLast(self, platos) -> RateData:
         data = RateData();
@@ -39,6 +41,10 @@ class RateLoader:
         return data
 
     def __fetchByPairTsAndPeriod(self, pair:str, tsFrom:int, tsTo:int, period:int) -> list:
+        expected_items_count = (tsTo-tsFrom)/(60*period)
+        if expected_items_count > self.PAGE_LENGTH:
+            return self.__fetchByPairTsAndPeriodSplited(pair, tsFrom, tsTo, period)
+
         rawResponse = requests.get(self.PERIOD_URL, params={
             'pair': pair,
             'from': tsFrom,
@@ -50,6 +56,19 @@ class RateLoader:
             raise Exception('Error quering rates data')
 
         return response['data']
+
+    def __fetchByPairTsAndPeriodSplited(self, pair: str, tsFrom: int, tsTo: int, period: int) -> list:
+        items = []
+        total = int((tsTo - tsFrom)/(60*period))
+
+        for page in range(floor(total/self.PAGE_LENGTH)+1):
+            begin = tsFrom + page*self.PAGE_LENGTH*60
+            end = begin + self.PAGE_LENGTH*60
+            end = min(tsTo, end)
+
+            items += self.__fetchByPairTsAndPeriod(pair, begin, end, period)
+
+        return items
 
     def fetchPeriods(self, pair:str, tsFrom:int, tsTo:int, periods:list) -> RateData:
         data = RateData()
