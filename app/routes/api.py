@@ -2,6 +2,8 @@ from flask import request, jsonify
 from flask_jsonpify import jsonpify
 
 from app import app
+from app.bthelper import Backtest as BacktestHelper
+from app.models.backtest import Backtest
 from app.services.GlobalBacktest import GlobalBacktest
 from app.services.MacdDict import MacdDict
 from app.services.RateLoader import RateLoader
@@ -75,45 +77,67 @@ def calculationSingle(key):
 
     return jsonpify(plato.json())
 
-@app.route('/plato/backtest/run', methods=['POST', 'GET'])
-def runBakctest():
+@app.route('/backtest/run', methods=['POST', 'GET'])
+def runBacktest():
     params = request.args
 
     for key in ['pair', 'from', 'to', 'coeffs[0]', 'coeffs[1]']:
         if params.get(key) is None:
-            return jsonpify({ 'result': False, 'message': f'Param "{key}" is required' })
+            return jsonpify({'result': False, 'message': f'Param "{key}" is required'})
 
     pair = params['pair']
     tsFrom = int(params['from'])
     tsTo = int(params['to'])
 
-    platos = {}
-    for coeff in [params['coeffs[0]'].split('_'), params['coeffs[1]'].split('_')]:
-        plato = Plato(pair, coeff[0], coeff[1], coeff[2], coeff[3])
-        platos[plato.key()] = plato
+    enter_params = list(map(int, params['coeffs[0]'].split('_')))
+    penter = Plato(pair, *enter_params)
 
-    rateData = RateLoader().fetch(platos, tsFrom, tsTo)
+    exit_params = list(map(int, params['coeffs[1]'].split('_')))
+    pexit = Plato(pair, *exit_params)
 
-    for key in platos:
-        stockData = rateData.getSdf(plato.pair, plato.period)
+    rateData = RateLoader().fetch(dict(enter=penter, exit=pexit), tsFrom, tsTo)
 
-        plato.calculateAll(stockData)
+    calculation = BacktestHelper.calculate(
+        penter=penter, pexit=pexit,
+        denter=rateData.getSdf(penter.pair, penter.period),
+        dexit=rateData.getSdf(pexit.pair, pexit.period),
+        begin=tsFrom, end=tsTo, force=True
+    )
 
-    return jsonify([platos[key].json(True) for key in platos])
+    _, _, _, _, statistics, _ = calculation
 
+    bt = Backtest(
+        buy_fast=penter.fast,
+        buy_slow=penter.slow,
+        buy_signal=penter.signal,
+        buy_period=penter.period,
+        sell_fast=pexit.fast,
+        sell_slow=pexit.slow,
+        sell_signal=pexit.signal,
+        sell_period=pexit.period,
+        status='3',
+        type='1',
+        data=f'{dumps(dict(statistics=statistics))}',
+        extend='|main.backtest|',
+        name=f'Buy: {penter.key(":")}, Sell: {pexit.key(":")}',
+        total_month6=round(float(statistics['4']['profit']), 2),
+        total_month3=round(float(statistics['3']['profit']), 2),
+        total_month1=round(float(statistics['2']['profit']), 2),
+        total_week=round(float(statistics['1']['profit']), 2),
+        ts_start=tsFrom,
+        ts_end=tsTo,
+        is_rt=0
+    )
 
-@app.route('/plato/backtest/runall', methods=['GET'])
-def runGlobalBacktest():
-    params = request.args
-    for field in ['from', 'to', 'pair']:
-        if params.get(field) is None:
-            return jsonpify({ 'message': f'Param "{field}" is required', 'status': '1' })
+    bt.save()
 
-    # Run all backtests
-    ts = time()
-    itemsCount = GlobalBacktest(params['pair'], int(params['from']), int(params['to'])).run()
-    print(f'{itemsCount} items was processed in ' + '%.3f s'%(time()-ts))
-    return jsonpify({ 'message': 'Done', 'status': '1', 'Total': '%.3f s'%(time()-ts), 'Size': itemsCount })
+    return jsonpify(dict(
+        result=1,
+        message='Backtest successfully calculated',
+        backtest=dict(
+            id=bt.id
+        )
+    ))
 
 if __name__ == '__main__':
     app.run(debug=True) # Run app
