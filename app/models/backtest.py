@@ -97,6 +97,10 @@ class Backtest(db.Model):
         db.session.add(self)
         db.session.commit()
 
+    @staticmethod
+    def find(id: int):
+        return db.session.query(Backtest).get(id)
+
 if __name__ == '__main__':
 
     Backtest.new_backtest([0,0,0,0], [0,0,0,0], 'test')
