@@ -139,5 +139,45 @@ def runBacktest():
         )
     ))
 
+@app.route('/backtest/run/<string:id>', methods=['POST', 'GET'])
+def runBacktestById(id):
+    bt = Backtest.find(int(id))
+    if bt is None:
+        return jsonpify(dict(
+            result=0,
+            message=f'There is no backtest #{id} found'
+        ))
+
+    penter = Plato('btc_usd', bt.buy_fast, bt.buy_slow, bt.buy_signal, bt.buy_period)
+    pexit = Plato('btc_usd', bt.sell_fast, bt.sell_slow, bt.sell_signal, bt.sell_period)
+
+    tsFrom = bt.ts_start
+    tsTo = bt.ts_end
+
+    rateData = RateLoader().fetch(dict(enter=penter, exit=pexit), tsFrom, tsTo)
+
+    calculation = BacktestHelper.calculate(
+        penter=penter, pexit=pexit,
+        denter=rateData.getSdf(penter.pair, penter.period),
+        dexit=rateData.getSdf(pexit.pair, pexit.period),
+        begin=tsFrom, end=tsTo, force=True
+    )
+
+    _, _, _, _, statistics, _ = calculation
+
+    bt.status = 3
+    bt.data = f'{dumps(dict(statistics=statistics))}'
+    bt.total_month6 = round(float(statistics['4']['profit']), 2)
+    bt.total_month3 = round(float(statistics['3']['profit']), 2)
+    bt.total_month1 = round(float(statistics['2']['profit']), 2)
+    bt.total_week = round(float(statistics['1']['profit']), 2)
+
+    bt.save()
+
+    return jsonpify(dict(
+        result=1,
+        message='Backtest successfully calculated'
+    ))
+
 if __name__ == '__main__':
     app.run(debug=True) # Run app
