@@ -151,12 +151,14 @@ if __name__ == '__main__':
     if args.till is not None:
         end = int(args.till)
 
+    end -= end % 60
     begin = end - INTERVALS[args.goback]
-    begin_with_offset = begin - 1440*60*33
+    begin_with_offset = begin - 1440*60*40
 
     print(f'Start RT backtest')
-    print(f'Period: {tsToTime(begin)} -> {tsToTime(end)}')
+    print(f'Period: {tsToTime(begin)} -> {tsToTime(end)}, wOffset: {tsToTime(begin_with_offset)}')
     ts = time()
+
     rates = RateLoader().fetchPeriods(args.pair, begin_with_offset, end, [1]).getSdf(args.pair, 1)
     print(f'Rates loaded (~{len(rates)}) in {round(time()-ts, 3)}s')
 

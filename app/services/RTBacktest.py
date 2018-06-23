@@ -10,7 +10,6 @@ from app.models.plato import Plato
 
 class RTBacktest():
 
-    PERIOD_OFFSET = 33
     FRAME_SIZE = 40
 
     def __init__(self, plato_enter: Plato, plato_exit: Plato, rates: StockDataFrame, begin: int, end: int):
