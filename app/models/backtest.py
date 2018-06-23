@@ -93,6 +93,10 @@ class Backtest(db.Model):
 
         db.session.commit()
 
+    def save(self):
+        db.session.add(self)
+        db.session.commit()
+
 if __name__ == '__main__':
 
     Backtest.new_backtest([0,0,0,0], [0,0,0,0], 'test')
