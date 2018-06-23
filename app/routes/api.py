@@ -1,22 +1,17 @@
-from flask import request, jsonify
+from flask import request
 from flask_jsonpify import jsonpify
+from json import dumps
 
 from app import app
 from app.bthelper import Backtest as BacktestHelper
 from app.models.backtest import Backtest
-from app.services.GlobalBacktest import GlobalBacktest
 from app.services.MacdDict import MacdDict
+from app.services.RTBacktest import RTBacktest
 from app.services.RateLoader import RateLoader
 from app.helper import setup_loggin
 from app.models.plato import Plato
 
-from time import time
-from json import dumps
-
 logger = setup_loggin()
-
-# app = Flask(__name__)
-# app.debug = True
 
 @app.route('/plato/list', methods=['GET'])
 def getAllPlatos():
@@ -154,16 +149,23 @@ def runBacktestById(id):
     tsFrom = bt.ts_start
     tsTo = bt.ts_end
 
-    rateData = RateLoader().fetch(dict(enter=penter, exit=pexit), tsFrom, tsTo)
+    if bt.is_rt:
+        offset = max(penter.period, pexit.period) * 60 * 40
 
-    calculation = BacktestHelper.calculate(
-        penter=penter, pexit=pexit,
-        denter=rateData.getSdf(penter.pair, penter.period),
-        dexit=rateData.getSdf(pexit.pair, pexit.period),
-        begin=tsFrom, end=tsTo, force=True
-    )
+        rates = RateLoader().fetchPeriods('btc_usd', tsFrom - offset, tsTo, [1]).getSdf('btc_usd', 1)
 
-    _, _, _, _, statistics, _ = calculation
+        statistics = RTBacktest(penter, pexit, rates, tsFrom, tsTo).run()
+    else:
+        rates = RateLoader().fetch(dict(enter=penter, exit=pexit), tsFrom, tsTo)
+
+        calculation = BacktestHelper.calculate(
+            penter=penter, pexit=pexit,
+            denter=rates.getSdf(penter.pair, penter.period),
+            dexit=rates.getSdf(pexit.pair, pexit.period),
+            begin=tsFrom, end=tsTo, force=True
+        )
+
+        _, _, _, _, statistics, _ = calculation
 
     bt.status = 3
     bt.data = f'{dumps(dict(statistics=statistics))}'
