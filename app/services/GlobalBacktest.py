@@ -69,7 +69,8 @@ class GlobalBacktest:
                     total_week=round(float(statistics['1']['profit']), 2),
                     ts_start=self.tsFrom,
                     ts_end=self.tsTo,
-                    is_rt=0
+                    is_rt=0,
+                    active=1
                 ))
         self.log(f'Saving {len(backtests)} backtests');
         ts = time()

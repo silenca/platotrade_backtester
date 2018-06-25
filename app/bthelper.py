@@ -83,6 +83,15 @@ class Statistics():
 
                     deals = deals.append(DataFrame(deal, index=[adv.minute_ts]), ignore_index=True)
                     deal = None
+
+        if deal is not None:
+            cur_ts = advises.minute_ts.values[-1]
+            if deal['ts_enter'] != cur_ts:
+                deal['price_exit'] = advises.close.values[-1]
+                deal['ts_exit'] = advises.minute_ts.values[-1]
+
+                deals = deals.append(DataFrame(deal, index=[deal['price_exit']]), ignore_index=True)
+
         del advises
 
         deals.price_enter = deals.price_enter.astype(float)

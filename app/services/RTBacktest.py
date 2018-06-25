@@ -48,12 +48,14 @@ class RTBacktest():
         ts = time()
         i = 0
 
+        last_price = None
         for rawFrame in generator:
             cur_ts = rawFrame.index.values[-1]
             if cur_ts < begin:
                 del rawFrame
                 continue
             i += 1
+            last_price = (cur_ts, rawFrame.close.values[-1])
 
             if deal is None:
                 advises = Calculator.calculateRealtimeAdvise(rawFrame, penter)
@@ -72,6 +74,14 @@ class RTBacktest():
 
                     deals = deals.append(DataFrame(deal, index=[0]), ignore_index=True)
                     deal = None
+
+        if deal is not None and last_price is not None:
+            if deal['ts_enter'] != last_price[0]:
+                deal['price_exit'] = last_price[1]
+                deal['ts_exit'] = last_price[0]
+
+                deals = deals.append(DataFrame(deal, index=[deal.price_exit]), ignore_index=True)
+
         if i == 0:
             i = 1
             print('NO DEALS')

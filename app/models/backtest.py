@@ -59,7 +59,8 @@ class Backtest(db.Model):
                              total_month1=statistics['2']['total'],
                              total_week=statistics['1']['total'],
                              ts_start=start,
-                             ts_end=end
+                             ts_end=end,
+                             active=1
                              )
 
         db.session.add(_backtest)
