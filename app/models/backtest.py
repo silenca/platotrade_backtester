@@ -1,12 +1,13 @@
 from app import db
 
-
 class Backtest(db.Model):
 
     __tablename__ = 'main_backtest'
     __table_args__ = {'extend_existing': True}
 
     id = db.Column(db.Integer, primary_key=True)
+
+    active = db.Column(db.Integer)
 
     buy_fast = db.Column(db.Integer)
     buy_slow = db.Column(db.Integer)
@@ -100,6 +101,21 @@ class Backtest(db.Model):
     @staticmethod
     def find(id: int):
         return db.session.query(Backtest).get(id)
+
+    @staticmethod
+    def findOneToCalculate():
+        return db.session.query(Backtest).filter(*[
+            Backtest.status == 1,
+            Backtest.active == 1
+        ]).first()
+
+    @staticmethod
+    def findOneToProcess(exclude):
+        return db.session.query(Backtest).filter(*[
+            Backtest.status == 1,
+            Backtest.active == 1,
+            Backtest.id.notin_(exclude)
+        ]).first()
 
 if __name__ == '__main__':
 
