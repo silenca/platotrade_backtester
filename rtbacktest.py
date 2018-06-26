@@ -99,7 +99,8 @@ def calculate(penter: Plato, pexit: Plato, rates: StockDataFrame, begin: int, en
             total_week=float(stats['1']['profit']),
             ts_start=begin,
             ts_end=end,
-            is_rt=1
+            is_rt=1,
+            active=1
         )
     else:
         return None

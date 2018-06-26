@@ -121,7 +121,8 @@ def runBacktest():
         total_week=round(float(statistics['1']['profit']), 2),
         ts_start=tsFrom,
         ts_end=tsTo,
-        is_rt=0
+        is_rt=0,
+        active=1
     )
 
     bt.save()
