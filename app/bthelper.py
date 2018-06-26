@@ -56,6 +56,7 @@ class Statistics():
         adv_enter = adv_enter[adv_enter.advise == Plato.ADVISE_BUY][['close', 'minute_ts', 'advise']]
 
         adv_exit = pexit.adviseData
+        last_price = (adv_exit.minute_ts.values[-1], adv_exit.close.values[-1])
         adv_exit = adv_exit[adv_exit.advise == Plato.ADVISE_SELL][['close', 'minute_ts', 'advise']]
 
         adv_comb = adv_enter.combine_first(adv_exit)
@@ -84,13 +85,13 @@ class Statistics():
                     deals = deals.append(DataFrame(deal, index=[adv.minute_ts]), ignore_index=True)
                     deal = None
 
-        if deal is not None:
-            cur_ts = advises.minute_ts.values[-1]
-            if deal['ts_enter'] != cur_ts:
-                deal['price_exit'] = advises.close.values[-1]
-                deal['ts_exit'] = advises.minute_ts.values[-1]
+        if deal is not None and last_price is not None:
+            ts, price = last_price
+            if deal['ts_enter'] != ts:
+                deal['price_exit'] = price
+                deal['ts_exit'] = ts
 
-                deals = deals.append(DataFrame(deal, index=[deal['price_exit']]), ignore_index=True)
+                deals = deals.append(DataFrame(deal, index=[deal['ts_exit']]), ignore_index=True)
 
         del advises
 
