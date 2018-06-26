@@ -80,7 +80,7 @@ class RTBacktest():
                 deal['price_exit'] = last_price[1]
                 deal['ts_exit'] = last_price[0]
 
-                deals = deals.append(DataFrame(deal, index=[deal.price_exit]), ignore_index=True)
+                deals = deals.append(DataFrame(deal, index=[deal['ts_exit']]), ignore_index=True)
 
         if i == 0:
             i = 1
@@ -137,7 +137,7 @@ class Calculator():
             nextIdx = lastIdx + Calculator.getPeriodSec(plato)
             Calculator.c_cache[key] = (periodFrame, lastIdx, nextIdx)
 
-        if lts > lastIdx and lts < nextIdx:
+        if lts < nextIdx:
             frame = rawFrame[-1:]
             frame.index = [nextIdx]
             periodFrame = periodFrame.append(frame, verify_integrity=True)
@@ -148,8 +148,8 @@ class Calculator():
         return periodFrame
 
     @staticmethod
-    def calculateRealtimeAdvise(rawFrame: StockDataFrame, plato: Plato):
-        return plato.calculateReal(Calculator.calculateRealtimeFrame(rawFrame, plato), 1)
+    def calculateRealtimeAdvise(rawFrame: StockDataFrame, plato: Plato, count: int=1):
+        return plato.calculateReal(Calculator.calculateRealtimeFrame(rawFrame, plato), count)
 
 class StatisticsCalc():
 
