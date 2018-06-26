@@ -61,10 +61,13 @@ class RTBacktest():
                 advises = Calculator.calculateRealtimeAdvise(rawFrame, penter)
                 is_buy_advise = advises.advise.values[-1] == Plato.ADVISE_BUY
                 if is_buy_advise:
-                    deal = dict(
-                        ts_enter=cur_ts,
-                        price_enter=advises.close.values[-1]
-                    )
+                    #check if we already have deal within current interval to prevent cycling
+                    cur_interval = cur_ts - cur_ts%Calculator.getPeriodSec(penter)
+                    if len(deals[deals.ts_enter == cur_interval]) <= 0:
+                        deal = dict(
+                            ts_enter=cur_ts,
+                            price_enter=advises.close.values[-1]
+                        )
             else:
                 advises = Calculator.calculateRealtimeAdvise(rawFrame, pexit)
                 is_sell_advise = advises.advise.values[-1] == Plato.ADVISE_SELL
