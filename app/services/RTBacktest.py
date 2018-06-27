@@ -43,12 +43,15 @@ class RTBacktest():
 
     @staticmethod
     def calculateDeals(generator, penter: Plato, pexit: Plato, begin: int):
-        deals = DataFrame(columns=['ts_enter', 'ts_exit', 'price_enter', 'price_exit'])
+        deals = DataFrame(columns=['ts_enter', 'ts_exit', 'price_enter', 'price_exit', 'emergency_enter', 'emergency_exit'])
         deal = None
         ts = time()
         i = 0
 
         last_price = None
+        enter_advises_acc = None
+        exit_advises_acc = None
+        acc_capacity = 5;
         for rawFrame in generator:
             cur_ts = rawFrame.index.values[-1]
             if cur_ts < begin:
@@ -56,24 +59,71 @@ class RTBacktest():
                 continue
             i += 1
             last_price = (cur_ts, rawFrame.close.values[-1])
+            # Calculate current intervals
+            period_enter = Calculator.getPeriodSec(penter)
+            period_exit = Calculator.getPeriodSec(pexit)
+            cur_interval_enter = cur_ts - cur_ts%period_enter + period_enter
+            cur_interval_exit = cur_ts - cur_ts%period_exit + period_exit
+            # Calculate recent actions
+            recently_opened = deal is not None \
+                              and (cur_interval_enter - deal['ts_enter']) <= 2*period_enter
+            recently_closed = deal is None \
+                              and len(deals) \
+                              and not deals.emergency_exit.values[-1] \
+                              and (cur_interval_exit - deals.ts_exit.values[-1]) <= 2*period_exit
+
+            enter_advises = Calculator.calculateRealtimeAdvise(rawFrame, penter)
+            exit_advises = Calculator.calculateRealtimeAdvise(rawFrame, pexit)
+
+            cur_enter_advise = enter_advises.advise.values[-1]
+            cur_exit_advise = exit_advises.advise.values[-1]
+
+            # Fill acc initial value
+            if enter_advises_acc is None or enter_advises_acc[0] != cur_interval_enter:
+                enter_advises_acc = (cur_interval_enter, [])
+            if exit_advises_acc is None or exit_advises_acc[0] != cur_interval_exit:
+                exit_advises_acc = (cur_interval_exit, [])
+            # If there is enough data - skip first
+            if len(enter_advises_acc[1]) == acc_capacity:
+                enter_advises_acc = (enter_advises_acc[0], enter_advises_acc[1][1:])
+            if len(exit_advises_acc[1]) == acc_capacity:
+                exit_advises_acc = (exit_advises_acc[0], exit_advises_acc[1][1:])
+            # Fill acc with current value
+            enter_advises_acc[1].append(cur_enter_advise)
+            exit_advises_acc[1].append(cur_exit_advise)
+
+            is_buy_advise = False
+            no_buy_advise = False
+            if len(enter_advises_acc[1]) == acc_capacity:
+                if all([a == Plato.ADVISE_BUY for a in enter_advises_acc[1]]):
+                    is_buy_advise = True
+                if all([a != Plato.ADVISE_BUY for a in enter_advises_acc[1]]):
+                    no_buy_advise = True
+
+            is_sell_advise = False
+            no_sell_advise = False
+            if len(exit_advises_acc[1]) == acc_capacity:
+                if all([a == Plato.ADVISE_BUY for a in exit_advises_acc[1]]):
+                    is_sell_advise = True
+                if all([a != Plato.ADVISE_BUY for a in exit_advises_acc[1]]):
+                    no_sell_advise = True
 
             if deal is None:
-                advises = Calculator.calculateRealtimeAdvise(rawFrame, penter)
-                is_buy_advise = advises.advise.values[-1] == Plato.ADVISE_BUY
-                if is_buy_advise:
-                    #check if we already have deal within current interval to prevent cycling
-                    cur_interval = cur_ts - cur_ts%Calculator.getPeriodSec(penter)
-                    if len(deals[deals.ts_enter == cur_interval]) <= 0:
+                is_emer = recently_closed and no_sell_advise
+                if is_buy_advise or is_emer:
+                    if len(deals[cur_interval_enter - deals.ts_enter <= period_enter]) <= 0:
                         deal = dict(
                             ts_enter=cur_ts,
-                            price_enter=advises.close.values[-1]
+                            price_enter=enter_advises.close.values[-1],
+                            emergency_enter=is_emer,
+                            emergency_exit=False
                         )
             else:
-                advises = Calculator.calculateRealtimeAdvise(rawFrame, pexit)
-                is_sell_advise = advises.advise.values[-1] == Plato.ADVISE_SELL
-                if is_sell_advise:
+                is_emer = recently_opened and no_buy_advise
+                if is_sell_advise or is_emer:
                     deal['ts_exit'] = cur_ts
-                    deal['price_exit'] = advises.close.values[-1]
+                    deal['price_exit'] = exit_advises.close.values[-1]
+                    deal['emergency_exit'] = is_emer
 
                     deals = deals.append(DataFrame(deal, index=[0]), ignore_index=True)
                     deal = None
