@@ -38,7 +38,7 @@ pandas==0.22.0
 pandas-datareader==0.6.0
 pkg-resources==0.0.0
 pluggy==0.6.0
-py==1.5.3
+py==1.10.0
 pylint==1.8.2
 PyMySQL==0.8.1
 pyparsing==2.2.0
