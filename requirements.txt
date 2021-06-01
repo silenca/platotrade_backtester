@@ -54,7 +54,7 @@ requests-ftp==0.3.1
 six==1.11.0
 SQLAlchemy==1.2.7
 stockstats==0.2.0
-urllib3==1.22
+urllib3==1.26.5
 websocket-client==0.46.0
 Werkzeug==0.14.1
 wrapt==1.10.11
